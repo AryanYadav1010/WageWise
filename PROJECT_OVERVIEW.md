@@ -92,7 +92,7 @@ The interface is inspired by answer engines such as Perplexity: one question box
 - **Conversation memory.** Each question is answered on its own, by design.
 - **Accounts or saved history.**
 - **Dashboards and alerting.** Logs contain the data, but nothing watches them yet.
-- **CI on GitHub.** The workflow files exist but have not run on GitHub.
+- **CI on GitHub.** The code is in a private repository, but GitHub doesn't start workflows there (`startup_failure`, 30 Oct), as on another private repository on the same account. The same CI steps pass on a clean clone of the pushed commit, run locally.
 - **Human review of answer quality.** The review sheets and [checklist](docs/ANSWER_REVIEW_CHECKLIST.md) are ready, but no person has filled them in.
 
 ---
