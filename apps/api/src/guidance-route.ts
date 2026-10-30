@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { isValidIsoDate, londonDateFromInstant } from "./domain/dates.ts";
 import { NATIONS } from "./ingest/corpus.ts";
+import { guidanceResponse } from "./responses.ts";
 import type { SearchOutcome, SearchRequest, WarnLogger } from "./retrieval/search.ts";
 
 /** What the route needs from the retrieval layer; null when no database is configured. */
@@ -66,7 +67,7 @@ export function registerGuidanceSearch(app: FastifyInstance, search: GuidanceSea
 
     // Privacy: log the shape of the request, never the query text.
     request.log.info({ queryLength: query.length, jurisdiction, asOfDate, results: outcome.results.length, lexical: outcome.lexical, vector: outcome.vector }, "guidance search");
-    return {
+    return guidanceResponse.parse({
       mode: "source_discovery",
       isGroundedAnswer: false,
       traceId: request.id,
@@ -77,6 +78,6 @@ export function registerGuidanceSearch(app: FastifyInstance, search: GuidanceSea
       retrieval: { lexical: outcome.lexical, vector: outcome.vector },
       notices: noticesFor(outcome, jurisdiction),
       disclaimer: DISCLAIMER
-    };
+    });
   });
 }

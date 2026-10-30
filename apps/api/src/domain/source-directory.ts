@@ -1,10 +1,13 @@
-// Original topic summaries written for this prototype; these are NOT extracted GOV.UK passages.
+// Original summaries written for this project, NOT extracted passages. MoneyHelper, FCA and FSCS are
+// links only: their content is never fetched, stored, embedded or sent to the model, because reuse
+// rights for it haven't been checked. Linking implies no endorsement or relationship.
 export type SourceLink = {
   title: string;
   url: string;
   description: string;
   topic: string;
   jurisdiction: "uk" | "england-and-wales";
+  publisher: string;
 };
 
 export const directory: readonly SourceLink[] = [
@@ -12,31 +15,55 @@ export const directory: readonly SourceLink[] = [
     title: "What your tax code means",
     url: "https://www.gov.uk/tax-codes/what-your-tax-code-means",
     description: "Understand tax codes, PAYE payroll deductions and tax code letters.",
-    topic: "tax_codes", jurisdiction: "uk"
+    topic: "tax_codes", jurisdiction: "uk", publisher: "GOV.UK"
   },
   {
     title: "Income Tax rates and allowances",
     url: "https://www.gov.uk/income-tax-rates",
     description: "Explore UK income tax, allowances, rates and tax-year rules.",
-    topic: "income_tax", jurisdiction: "uk"
+    topic: "income_tax", jurisdiction: "uk", publisher: "GOV.UK"
   },
   {
     title: "Joining a workplace pension",
     url: "https://www.gov.uk/workplace-pensions/joining-a-workplace-pension",
     description: "Learn about workplace pensions, automatic enrolment and pension contributions.",
-    topic: "pensions", jurisdiction: "uk"
+    topic: "pensions", jurisdiction: "uk", publisher: "GOV.UK"
   },
   {
     title: "Statutory Sick Pay",
     url: "https://www.gov.uk/statutory-sick-pay",
     description: "Find official guidance on statutory sick pay eligibility and payments.",
-    topic: "sick_pay", jurisdiction: "uk"
+    topic: "sick_pay", jurisdiction: "uk", publisher: "GOV.UK"
   },
   {
     title: "UK bank holidays",
     url: "https://www.gov.uk/bank-holidays",
     description: "Check bank holidays and regional dates that can affect payroll schedules.",
-    topic: "bank_holidays", jurisdiction: "uk"
+    topic: "bank_holidays", jurisdiction: "uk", publisher: "GOV.UK"
+  },
+  {
+    title: "Understanding your pay",
+    url: "https://www.gov.uk/understanding-your-pay",
+    description: "Understand payslips, deductions and what your employer must show you.",
+    topic: "payslips", jurisdiction: "uk", publisher: "GOV.UK"
+  },
+  {
+    title: "Spot and avoid investment scams",
+    url: "https://www.fca.org.uk/scamsmart",
+    description: "Check an investment or pension offer and learn how to avoid financial scams.",
+    topic: "scams", jurisdiction: "uk", publisher: "FCA"
+  },
+  {
+    title: "Financial Services Compensation Scheme",
+    url: "https://www.fscs.org.uk/",
+    description: "Find out how your savings and financial products are protected if a firm fails.",
+    topic: "consumer_protection", jurisdiction: "uk", publisher: "FSCS"
+  },
+  {
+    title: "MoneyHelper",
+    url: "https://www.moneyhelper.org.uk/en",
+    description: "Free guidance on budgeting, saving, debt, borrowing, pensions and scams.",
+    topic: "money_guidance", jurisdiction: "uk", publisher: "MoneyHelper"
   }
 ];
 

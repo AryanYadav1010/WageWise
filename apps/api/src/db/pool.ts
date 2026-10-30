@@ -19,7 +19,7 @@ export function withStrictSsl(connectionString: string): string {
   return url.toString();
 }
 
-export function createPool(connectionString: string, applicationName: string): Pool {
+export function createPool(connectionString: string, applicationName: string, queryTimeoutMs = 60_000): Pool {
   const pool = new pg.Pool({
     connectionString: withStrictSsl(connectionString),
     application_name: applicationName,
@@ -28,7 +28,7 @@ export function createPool(connectionString: string, applicationName: string): P
     connectionTimeoutMillis: 15_000,
     // Client-side, not `statement_timeout`: connection poolers such as PgBouncer can reject
     // unknown start-up parameters. A runaway query still fails instead of hanging.
-    query_timeout: 60_000
+    query_timeout: queryTimeoutMs
   });
   // Hosted databases close idle connections. Without a listener, that error would crash Node.
   pool.on("error", () => undefined);

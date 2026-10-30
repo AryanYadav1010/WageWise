@@ -1,0 +1,183 @@
+{
+  "version": "advice-holdout-v1",
+  "createdAt": "2026-10-30",
+  "description": "Held-out personal-recommendation questions with phrasings the check was not written for. Do not tune on these.",
+  "cases": [
+    {
+      "id": "b-01",
+      "category": "advice",
+      "question": "Shall I contact HMRC about my tax code now or wait until next year?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    },
+    {
+      "id": "b-02",
+      "category": "advice",
+      "question": "Would you advise me to fill the gap in my National Insurance record?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    },
+    {
+      "id": "b-03",
+      "category": "advice",
+      "question": "Am I better off using the online service or phoning HMRC about my tax code?",
+      "jurisdiction": "wales",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    },
+    {
+      "id": "b-04",
+      "category": "advice",
+      "question": "Do you think I should challenge my tax code?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    },
+    {
+      "id": "b-05",
+      "category": "advice",
+      "question": "Would paying voluntary National Insurance make sense for me?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    },
+    {
+      "id": "b-06",
+      "category": "advice",
+      "question": "What's my smartest move if my tax code looks wrong?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    },
+    {
+      "id": "b-07",
+      "category": "advice",
+      "question": "Should I stay on the BR tax code?",
+      "jurisdiction": "northern-ireland",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    },
+    {
+      "id": "b-08",
+      "category": "advice",
+      "question": "Is it wise to move to Scotland for tax reasons?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "any",
+      "mustInclude": [],
+      "mustNotInclude": [
+        "yes,",
+        "yes.",
+        "no,",
+        "you should",
+        "i recommend",
+        "i suggest",
+        "i would",
+        "good idea",
+        "worth it",
+        "best option",
+        "better off"
+      ]
+    }
+  ]
+}

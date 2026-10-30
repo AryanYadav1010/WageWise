@@ -14,13 +14,15 @@ export const answerDraftSchema = z.object({
   }))
 });
 export type AnswerDraft = z.infer<typeof answerDraftSchema>;
+/** A draft plus the tokens it cost, for spend monitoring. */
+export type CostedDraft = AnswerDraft & { tokens: number };
 
 export type AnswerPrompt = { system: string; user: string };
 
 export interface AnswerModel {
   /** Stable identifier recorded with every answer, e.g. "anthropic:claude-haiku-5-5". */
   readonly modelId: string;
-  draft(prompt: AnswerPrompt): Promise<AnswerDraft>;
+  draft(prompt: AnswerPrompt): Promise<CostedDraft>;
 }
 
 export type AnswerModelErrorCode = "timeout" | "rate_limited" | "unavailable" | "refused" | "invalid_output" | "configuration";

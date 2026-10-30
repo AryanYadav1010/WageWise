@@ -14,8 +14,10 @@
     "db:migrate": "tsx src/cli/migrate.ts",
     "ingest": "tsx src/cli/ingest.ts",
     "ingest:verify": "tsx src/cli/verify.ts",
+    "ingest:check": "tsx src/cli/check-freshness.ts",
     "embed": "tsx src/cli/embed.ts",
     "eval:retrieval": "tsx src/cli/eval-retrieval.ts",
+    "eval:answers": "tsx src/cli/eval-answers.ts",
     "eval:check-labels": "tsx src/cli/check-labels.ts",
     "licence:review": "tsx src/cli/licence-review.ts"
   },
@@ -23,12 +25,12 @@
     "@anthropic-ai/sdk": "^1.3.0",
     "@fastify/cors": "^10.0.0",
     "@fastify/rate-limit": "^10.0.0",
-    "@huggingface/transformers": "^3.8.1",
+    "@huggingface/transformers": "^4.3.2",
     "fastify": "^5.0.0",
-    "html-to-text": "^9.0.5",
+    "html-to-text": "^10.0.1",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
-    "zod": "^3.24.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/html-to-text": "^9.0.4",

@@ -21,7 +21,7 @@ function SourceRow({ source, highlighted }: { source: ChatSource; highlighted: b
     </a>
     <p className="text-[13px] leading-relaxed text-muted mt-2 ml-8">{source.excerpt}</p>
     <p className="text-xs text-faint mt-2 ml-8">
-      {nationList(source.nations)} · {periodText(source.applicability)} · Copied {formatIsoDate(source.sourceFetchedAt.slice(0, 10))}
+      {nationList(source.nations)} · {periodText(source.applicability)} · Checked against GOV.UK {formatIsoDate((source.sourceCheckedAt ?? source.sourceFetchedAt).slice(0, 10))}
     </p>
   </li>;
 }

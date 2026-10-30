@@ -11,6 +11,7 @@ import { bankHolidayLookup, JURISDICTIONS, MissingHolidayDataError, type BankHol
 import { findSourceLinks } from "./domain/source-directory.ts";
 import { registerChat, type ChatService } from "./chat-route.ts";
 import { registerGuidanceSearch, type GuidanceSearch } from "./guidance-route.ts";
+import { budgetResponse, linkResponse } from "./responses.ts";
 
 export type AppDependencies = {
   config: AppConfig;
@@ -21,6 +22,8 @@ export type AppDependencies = {
   guidanceSearch?: GuidanceSearch | null;
   /** Grounded answers; null (the default) without a database and an LLM key. */
   chat?: ChatService | null;
+  /** Throws if the database can't be reached; null when none is configured. */
+  checkDatabase?: (() => Promise<void>) | null;
 };
 
 const isoDate = z.string().refine(isValidIsoDate, "Expected a real calendar date in YYYY-MM-DD format");
@@ -67,15 +70,26 @@ export async function buildApp(dependencies: AppDependencies) {
     logController: new LogController({ disableRequestLogging: true }),
     genReqId: () => randomUUID(),
     bodyLimit: 16_384,
+    // Slow clients can't hold connections open; idle sockets outlast the longest answer (LLM_TIMEOUT_MS).
+    requestTimeout: 15_000,
+    connectionTimeout: 90_000,
     // Trust exactly the configured number of proxy hops (as proxy-addr does for a hop count).
     trustProxy: config.TRUST_PROXY_HOPS === 0 ? false : (_address: string, hop: number) => hop < config.TRUST_PROXY_HOPS
   });
 
-  await app.register(cors, { origin: config.WEB_ORIGIN });
+  await app.register(cors, { origin: config.WEB_ORIGIN, methods: ["GET", "POST"] });
   await app.register(rateLimit, { max: config.RATE_LIMIT_PER_MINUTE, timeWindow: "1 minute" });
 
   app.addHook("onSend", async (request, reply) => {
     reply.header("x-request-id", request.id);
+    // A JSON API: nothing may be framed, sniffed or kept, so a stale answer can't sit in a browser cache.
+    reply.headers({
+      "cache-control": "no-store",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+      "referrer-policy": "no-referrer",
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
+      "x-content-type-options": "nosniff"
+    });
   });
   app.addHook("onResponse", async (request, reply) => {
     request.log.info({
@@ -88,11 +102,22 @@ export async function buildApp(dependencies: AppDependencies) {
 
   app.get("/api/health", async () => ({
     status: "ok",
-    milestone: 3,
+    version: "2",
     bankHolidayDataFetchedAt: holidaySnapshot.fetchedAt,
     guidanceSearch: dependencies.guidanceSearch === undefined || dependencies.guidanceSearch === null ? "not_configured" : "configured",
     chat: dependencies.chat === undefined || dependencies.chat === null ? "not_configured" : "configured"
   }));
+
+  // Separate from /api/health so a frequent platform health check doesn't keep the database awake.
+  app.get("/api/ready", async (request, reply) => {
+    try {
+      await dependencies.checkDatabase?.();
+      return { status: "ready", database: dependencies.checkDatabase === undefined || dependencies.checkDatabase === null ? "not_configured" : "ok" };
+    } catch (error) {
+      request.log.error({ err: error instanceof Error ? error.message : String(error) }, "readiness check failed");
+      return reply.code(503).send({ status: "unavailable", requestId: request.id });
+    }
+  });
 
   registerGuidanceSearch(app, dependencies.guidanceSearch ?? null, now, config.SEARCH_RATE_LIMIT_PER_MINUTE);
   registerChat(app, dependencies.chat ?? null, now, config.CHAT_RATE_LIMIT_PER_MINUTE);
@@ -102,12 +127,12 @@ export async function buildApp(dependencies: AppDependencies) {
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_INPUT", message: "Question must be 3–500 characters.", requestId: request.id });
     }
-    return {
+    return linkResponse.parse({
       mode: "directory_only",
       isGroundedAnswer: false,
-      message: "These are related official guidance links, not AI-generated financial advice or verified excerpts.",
+      message: "These are links to useful official and public resources, not AI-generated financial advice or verified excerpts.",
       sources: findSourceLinks(parsed.data.question)
-    };
+    });
   });
 
   app.post("/api/budget", async (request, reply) => {
@@ -134,7 +159,7 @@ export async function buildApp(dependencies: AppDependencies) {
         billsBeforePaydayPence: input.billsBeforePaydayPence,
         essentialsBeforePaydayPence: input.essentialsBeforePaydayPence
       });
-      return {
+      return budgetResponse.parse({
         mode: "synthetic_calculator",
         today,
         jurisdiction: input.jurisdiction,
@@ -146,7 +171,7 @@ export async function buildApp(dependencies: AppDependencies) {
           licence: holidaySnapshot.licence
         },
         disclaimer: "Illustrative budgeting with the figures you entered. Check your payday with your employer. Not financial advice."
-      };
+      });
     } catch (error) {
       if (error instanceof MissingHolidayDataError) {
         return reply.code(422).send({ error: "HOLIDAY_DATA_UNAVAILABLE", message: error.message, requestId: request.id });

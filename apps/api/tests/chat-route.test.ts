@@ -17,13 +17,14 @@ const grounded: ChatAnswer = {
   abstainReason: null,
   sources: [{
     id: "S1", cited: true, sectionTitle: "Current rates", documentTitle: "Income Tax in Scotland", url: "https://www.gov.uk/scottish-income-tax",
-    excerpt: "Starter rate…", nations: ["scotland"], applicability: { status: "not_stated" }, sourceFetchedAt: "2026-10-28T19:00:00.000Z",
+    excerpt: "Starter rate…", nations: ["scotland"], applicability: { status: "not_stated" }, sourceFetchedAt: "2026-10-28T19:00:00.000Z", sourceCheckedAt: null,
     attribution: "Contains public sector information licensed under the Open Government Licence v3.0"
   }],
   droppedSentences: 0,
   dropReasons: {},
   personalAdviceRequested: false,
-  modelId: "test:fake"
+  modelId: "test:fake",
+  usage: { tokens: 0, cached: false, retrievalMs: 0, modelMs: 0 }
 };
 
 function fakeChat(reply: ChatAnswer | Error) {

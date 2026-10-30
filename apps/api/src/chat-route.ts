@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { AbstainReason, ChatAnswer, ChatRequest } from "./chat/answer.ts";
 import { isValidIsoDate, londonDateFromInstant } from "./domain/dates.ts";
 import { NATIONS } from "./ingest/corpus.ts";
+import { chatResponse } from "./responses.ts";
 import type { WarnLogger } from "./retrieval/search.ts";
 
 /** What the route needs; null when no database or no LLM key is configured. */
@@ -16,6 +17,7 @@ const chatRequestSchema = z.object({
 }).strict();
 
 const ABSTAIN_MESSAGES: Record<AbstainReason, string> = {
+  too_vague: "That's quite broad. Try a full question, such as what you want to know about it and where in the UK you live.",
   no_evidence: "I couldn't find approved official guidance that covers this, so I won't guess. Try rephrasing, or check GOV.UK directly.",
   relevance_unavailable: "I can't check how relevant the sources are right now, so I'm only listing them. Please read them on GOV.UK.",
   model_abstained: "The sources I found don't answer this clearly enough to summarise. They're listed below so you can check them yourself.",
@@ -67,10 +69,10 @@ export function registerChat(app: FastifyInstance, chat: ChatService | null, now
     request.log.info({
       questionLength: question.length, jurisdiction, asOfDate, mode: answer.mode, abstainReason: answer.abstainReason,
       sources: answer.sources.length, sentences: answer.answer.length, droppedSentences: answer.droppedSentences,
-      dropReasons: answer.dropReasons, model: answer.modelId
+      dropReasons: answer.dropReasons, model: answer.modelId, ...answer.usage
     }, "chat answered");
 
-    return {
+    return chatResponse.parse({
       mode: answer.mode,
       isGroundedAnswer: answer.mode === "grounded_answer",
       traceId: request.id,
@@ -82,6 +84,6 @@ export function registerChat(app: FastifyInstance, chat: ChatService | null, now
       notices: noticesFor(answer, jurisdiction),
       model: answer.modelId,
       disclaimer: DISCLAIMER
-    };
+    });
   });
 }

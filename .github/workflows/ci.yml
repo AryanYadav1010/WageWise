@@ -1,6 +1,6 @@
-# Typecheck, lint, unit tests and production builds on every push and pull request.
-# No secrets and no database: PostgreSQL tests (npm run test:db) run only where TEST_DATABASE_URL
-# points at an isolated Neon test branch, never in this workflow and never against production.
+# Typecheck, lint, audit, unit tests and production builds on every push and pull request.
+# Database tests run only when the TEST_DATABASE_URL secret exists. It must be a direct URL on an
+# isolated Neon test branch: the code refuses a pooled URL, and this workflow never sees production.
 name: CI
 
 on:
@@ -25,7 +25,26 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.TEST_DATABASE_URL != ''
+      - uses: actions/setup-node@v4
+        if: env.TEST_DATABASE_URL != ''
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: env.TEST_DATABASE_URL != ''
+      - run: npm run test:db
+        if: env.TEST_DATABASE_URL != ''

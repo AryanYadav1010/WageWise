@@ -15,6 +15,7 @@ npm install
 cp .env.example .env     # then fill it in; never commit it or paste it anywhere
 npm run db:migrate       # create the schema
 npm run ingest           # fetch and store the 25 GOV.UK guides
+npm run ingest:check     # later: compare GOV.UK with the store, changing nothing
 npm run embed            # embed approved guides (downloads a 133 MB model once)
 npm run dev              # API on :3001, web on :5173
 ```
@@ -32,8 +33,11 @@ npm run test:db          # needs TEST_DATABASE_URL on a separate Neon branch
 npm run licence:review -- --list
 npm run licence:review -- --path /guide --decision approved --reviewer "Your Name"
 npm run ingest && npm run embed && npm run eval:retrieval
+npm run eval:answers -- --label my-change    # answer quality, real model; small API cost
 ```
 
-After changing the approved guides, recalibrate `SEARCH_MIN_SIMILARITY` from the benchmark report. See [docs/LICENCE_REVIEW.md](docs/LICENCE_REVIEW.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Before a public release, a person must complete [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md).
+
+After changing the approved guides, recheck `SEARCH_MIN_SIMILARITY` and `ANSWER_MIN_SIMILARITY` against the benchmarks. See [docs/LICENCE_REVIEW.md](docs/LICENCE_REVIEW.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 GOV.UK content: *Contains public sector information licensed under the Open Government Licence v3.0.*

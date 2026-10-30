@@ -1,0 +1,33 @@
+# Weekly read-only comparison of GOV.UK with the stored guides. It changes nothing.
+# A failed run is the alert: GitHub emails the repository owner. Fix by reviewing the change, then
+# running `npm run ingest && npm run embed && npm run eval:retrieval`.
+# Needs the DATABASE_URL_UNPOOLED secret, ideally for a read-only role.
+name: GOV.UK freshness
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+      DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.DATABASE_URL != ''
+      - uses: actions/setup-node@v4
+        if: env.DATABASE_URL != ''
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: env.DATABASE_URL != ''
+      - run: npm run ingest:check
+        if: env.DATABASE_URL != ''

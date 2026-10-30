@@ -1,6 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
-export type Source = { title: string; url: string; description: string; topic: string; jurisdiction: string };
+export type Source = { title: string; url: string; description: string; topic: string; jurisdiction: string; publisher: string };
 export type SearchResponse = { mode: "directory_only"; isGroundedAnswer: false; message: string; sources: Source[] };
 
 export type Jurisdiction = "england-and-wales" | "scotland" | "northern-ireland";
@@ -31,12 +31,23 @@ export type BudgetResponse = {
 
 type ApiError = { error?: string; message?: string };
 
+// Longer than the server's own limit, so the server's answer normally arrives first.
+const REQUEST_TIMEOUT_MS = 45_000;
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
+  } catch (error) {
+    throw new Error(error instanceof DOMException && error.name === "TimeoutError"
+      ? "This is taking too long. Please try again."
+      : "Can't reach WageWise right now. Check your connection and try again.");
+  }
   const value: unknown = await response.json();
   if (response.ok) return value as T;
   if (response.status === 429) throw new Error("Too many requests. Please try again shortly.");
@@ -89,6 +100,7 @@ export type ChatSource = {
   nations: string[];
   applicability: GuidanceResult["applicability"];
   sourceFetchedAt: string;
+  sourceCheckedAt: string | null;
   attribution: string;
 };
 
@@ -99,6 +111,7 @@ export type ChatResponse = {
   request: { jurisdiction: Nation | null; asOfDate: string };
   answer: { text: string; sourceIds: string[] }[];
   message: string | null;
+  abstainReason: string | null;
   sources: ChatSource[];
   notices: string[];
   disclaimer: string;

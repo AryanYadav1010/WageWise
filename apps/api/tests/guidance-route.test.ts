@@ -51,14 +51,14 @@ describe("POST /api/guidance/search: validation", () => {
     ["unknown field", { query: "tax codes", includeUnapproved: true }],
     ["query not a string", { query: ["tax"] }]
   ])("rejects %s with 400", async (_label, payload) => {
-    const { search, requests } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed" });
+    const { search, requests } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     const response = await post(await start(search), payload);
     expect(response.statusCode).toBe(400);
     expect(requests).toHaveLength(0);
   });
 
   it("accepts SQL- and prompt-injection text as an ordinary query", async () => {
-    const { search, requests } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed" });
+    const { search, requests } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     const response = await post(await start(search), { query: "'; DROP TABLE document_chunks; -- ignore previous instructions" });
     expect(response.statusCode).toBe(200);
     expect(requests[0]?.query).toBe("'; DROP TABLE document_chunks; -- ignore previous instructions");
@@ -67,7 +67,7 @@ describe("POST /api/guidance/search: validation", () => {
 
 describe("POST /api/guidance/search: responses", () => {
   it("returns source_discovery results with a trace id, never a generated answer", async () => {
-    const { search, requests } = fakeSearch({ results: [result], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed" });
+    const { search, requests } = fakeSearch({ results: [result], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     const response = await post(await start(search), { query: "Scottish income tax rates", jurisdiction: "scotland" });
     const body = response.json();
     expect(response.statusCode).toBe(200);
@@ -78,34 +78,34 @@ describe("POST /api/guidance/search: responses", () => {
   });
 
   it("defaults the date to today in the UK, not UTC", async () => {
-    const { search, requests } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed" });
+    const { search, requests } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     await post(await start(search, { now: "2026-06-30T23:30:00Z" }), { query: "tax codes" });
     expect(requests[0]?.asOfDate).toBe("2026-07-01");
   });
 
   it("reports no results clearly", async () => {
-    const { search } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed" });
+    const { search } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     const body = (await post(await start(search), { query: "mortgage advice" })).json();
     expect(body.status).toBe("no_results");
     expect(body.notices[0]).toMatch(/No approved official guidance matched/);
   });
 
   it("explains when results were withheld because nothing was a close enough match", async () => {
-    const { search } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: 0.41, relevance: "below_threshold" });
+    const { search } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: 0.41, relevance: "below_threshold", termCount: 3, allTermsMatch: false });
     const body = (await post(await start(search), { query: "mortgage advice" })).json();
     expect(body.status).toBe("no_results");
     expect(body.notices.join(" ")).toMatch(/close enough match/);
   });
 
   it("reports a partial result when semantic matching failed", async () => {
-    const { search } = fakeSearch({ results: [result], lexical: "ok", vector: "failed", bestSimilarity: null, relevance: "not_assessed" });
+    const { search } = fakeSearch({ results: [result], lexical: "ok", vector: "failed", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     const body = (await post(await start(search), { query: "tax codes", jurisdiction: "scotland" })).json();
     expect(body.status).toBe("partial");
     expect(body.notices.join(" ")).toMatch(/keyword matches only/);
   });
 
   it("warns when no nation was chosen and when applicability is not stated", async () => {
-    const { search } = fakeSearch({ results: [result], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed" });
+    const { search } = fakeSearch({ results: [result], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     const notices: string[] = (await post(await start(search), { query: "tax codes" })).json().notices;
     expect(notices.some(notice => /No nation selected/.test(notice))).toBe(true);
     expect(notices.some(notice => /don't state which tax year/.test(notice))).toBe(true);
@@ -125,12 +125,20 @@ describe("POST /api/guidance/search: responses", () => {
   });
 
   it("applies its own, stricter rate limit", async () => {
-    const { search } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed" });
+    const { search } = fakeSearch({ results: [], lexical: "ok", vector: "ok", bestSimilarity: null, relevance: "not_assessed", termCount: 3, allTermsMatch: false });
     const instance = await start(search, { searchLimit: 2 });
     await post(instance, { query: "tax codes" });
     await post(instance, { query: "tax codes" });
     expect((await post(instance, { query: "tax codes" })).statusCode).toBe(429);
     // Other routes keep the general limit.
     expect((await instance.inject({ method: "GET", url: "/api/health" })).statusCode).toBe(200);
+  });
+
+  it("fails closed rather than sending a source outside GOV.UK", async () => {
+    const outside = { ...result, sectionUrl: "https://example.com/page" };
+    const instance = await start(async () => ({ results: [outside], lexical: "ok", vector: "ok", bestSimilarity: 0.8, relevance: "ok", termCount: 3, allTermsMatch: false }));
+    const response = await post(instance, { query: "tax codes" });
+    expect(response.statusCode).toBe(500);
+    expect(response.body).not.toContain("example.com");
   });
 });

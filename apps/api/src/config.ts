@@ -40,11 +40,18 @@ const envSchema = z.object({
   SEARCH_EMBED_TIMEOUT_MS: z.coerce.number().int().min(500).max(60_000).default(5_000),
   // Evidence gate. Unset until calibrated with `npm run eval:retrieval` on approved content.
   SEARCH_MIN_SIMILARITY: z.coerce.number().min(0).max(1).optional(),
+  // Answers need this similarity, or SEARCH_MIN_SIMILARITY with every meaningful word in one passage.
+  ANSWER_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.75),
   // Answers (chat). Server-side only.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   LLM_MODEL: z.string().min(1).default("claude-haiku-5-5"),
   LLM_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
-  CHAT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10)
+  CHAT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
+  LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(4),
+  // About 370 answers, or roughly $0.25 a day at Haiku 5.5 list prices.
+  LLM_DAILY_TOKEN_LIMIT: z.coerce.number().int().positive().default(2_000_000),
+  ANSWER_CACHE_ENTRIES: z.coerce.number().int().nonnegative().default(500),
+  ANSWER_CACHE_TTL_MINUTES: z.coerce.number().int().positive().default(60)
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -54,6 +61,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (!result.success) {
     // Report which variables are wrong, never their values: they may be secrets.
     throw new Error(`Invalid environment configuration: ${invalidKeys(result.error)}`);
+  }
+  if (result.data.NODE_ENV === "production" && !result.data.WEB_ORIGIN.startsWith("https://")) {
+    throw new Error("Invalid environment configuration: WEB_ORIGIN must be https in production");
   }
   return result.data;
 }

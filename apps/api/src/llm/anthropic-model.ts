@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { AnswerModelError, answerDraftSchema, type AnswerDraft, type AnswerModel, type AnswerPrompt } from "./answer-model.ts";
+import { AnswerModelError, answerDraftSchema, type AnswerDraft, type AnswerModel, type AnswerPrompt, type CostedDraft } from "./answer-model.ts";
 
 export type AnthropicModelOptions = {
   apiKey: string;
@@ -9,6 +9,10 @@ export type AnthropicModelOptions = {
   timeoutMs: number;
   /** The SDK retries 408/409/429/5xx and connection errors with backoff. */
   maxRetries?: number;
+  /** Requests beyond this at once are refused, so a burst can't queue up spend. */
+  maxConcurrent: number;
+  /** Input + output tokens per UTC day; past this, answers stop until tomorrow. */
+  dailyTokenLimit: number;
   /** Tests inject a fake HTTP layer; production uses the global fetch. */
   fetch?: typeof fetch;
 };
@@ -22,10 +26,18 @@ export class AnthropicAnswerModel implements AnswerModel {
   private readonly client: Anthropic;
   private readonly model: string;
   private readonly timeoutMs: number;
+  private readonly maxConcurrent: number;
+  private readonly dailyTokenLimit: number;
+  private inFlight = 0;
+  // ponytail: per process and reset on restart. A shared counter is needed with several instances;
+  // the Anthropic console spend limit is the hard ceiling either way.
+  private usage = { day: "", tokens: 0 };
 
   constructor(options: AnthropicModelOptions) {
     this.model = options.model;
     this.timeoutMs = options.timeoutMs;
+    this.maxConcurrent = options.maxConcurrent;
+    this.dailyTokenLimit = options.dailyTokenLimit;
     this.modelId = `anthropic:${options.model}`;
     this.client = new Anthropic({
       apiKey: options.apiKey,
@@ -35,15 +47,32 @@ export class AnthropicAnswerModel implements AnswerModel {
     });
   }
 
-  async draft(prompt: AnswerPrompt): Promise<AnswerDraft> {
+  private tokensToday(): number {
+    const day = new Date().toISOString().slice(0, 10);
+    if (this.usage.day !== day) this.usage = { day, tokens: 0 };
+    return this.usage.tokens;
+  }
+
+  async draft(prompt: AnswerPrompt): Promise<CostedDraft> {
+    if (this.tokensToday() >= this.dailyTokenLimit) throw new AnswerModelError("rate_limited", "The daily answer budget is used up");
+    if (this.inFlight >= this.maxConcurrent) throw new AnswerModelError("rate_limited", "Too many answers in progress");
+    this.inFlight += 1;
+    try {
+      return await this.request(prompt);
+    } finally {
+      this.inFlight -= 1;
+    }
+  }
+
+  private async request(prompt: AnswerPrompt): Promise<CostedDraft> {
     let response: Anthropic.Message;
     try {
       // create(), not parse(): a refusal or a truncated reply may not match the schema, and we
       // must check stop_reason before trying to read JSON (parse() would throw first).
       response = await this.client.messages.create({
         model: this.model,
-        // Answers are a handful of cited sentences; this cap is generous for that shape.
-        max_tokens: 4_000,
+        // Eight sentences of 40 words with citations fit comfortably: this is the per-request ceiling.
+        max_tokens: 1_200,
         // A short extraction-style task: low effort keeps latency and cost down.
         output_config: { effort: "low", format: zodOutputFormat(answerDraftSchema) },
         system: prompt.system,
@@ -53,6 +82,8 @@ export class AnthropicAnswerModel implements AnswerModel {
     } catch (error) {
       throw toAnswerModelError(error);
     }
+    const tokens = response.usage.input_tokens + response.usage.output_tokens;
+    this.usage.tokens += tokens;
     if (response.stop_reason === "refusal") {
       throw new AnswerModelError("refused", "The model declined to answer");
     }
@@ -60,7 +91,7 @@ export class AnthropicAnswerModel implements AnswerModel {
       throw new AnswerModelError("invalid_output", "The model's answer was cut off");
     }
     const text = response.content.flatMap(block => (block.type === "text" ? [block.text] : [])).join("");
-    return parseDraft(text);
+    return { ...parseDraft(text), tokens };
   }
 }
 

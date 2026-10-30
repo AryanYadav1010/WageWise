@@ -49,6 +49,10 @@ export type SearchOutcome = {
    * results were withheld. "not_assessed": no threshold set, or semantic search unavailable.
    */
   relevance: "ok" | "below_threshold" | "not_assessed";
+  /** Meaningful words in the query, after Postgres removes stop words. */
+  termCount: number;
+  /** One approved passage contains every meaningful word: a strong sign the corpus covers the question. */
+  allTermsMatch: boolean;
   lexical: "ok" | "failed" | "skipped";
   vector: "ok" | "failed" | "skipped" | "not_configured";
 };
@@ -69,10 +73,12 @@ export type SearchDependencies = {
 export const CANDIDATES_PER_LIST = 30;
 /** Reciprocal Rank Fusion constant from Cormack, Clarke & Büttcher (2009). */
 export const RRF_K = 60;
+/** Vector ranks count 3× keyword ranks: chosen on the frozen benchmark, where 3 and 5 score the same. */
+export const VECTOR_WEIGHT = 3;
 const MAX_QUERY_TERMS = 32;
 const EXCERPT_CHARS = 320;
-// Per-section text given to the answer model: about 2.5 chunks. Six sources stay well under 20k characters.
-const PASSAGE_CHARS = 3_000;
+// Per-section text given to the answer model: enough for a whole typical section, so a table isn't cut.
+const PASSAGE_CHARS = 6_000;
 
 /**
  * Lexical terms: lowercase letters and digits only, so user input can never inject tsquery
@@ -117,10 +123,22 @@ export async function vectorSearch(pool: Pool, queryVector: readonly number[], m
   return result.rows.map((row, index) => ({ chunkId: row.chunk_id, rank: index + 1, similarity: Number(row.similarity) }));
 }
 
+/** How well the corpus covers the query's words. Uses queryTerms because Postgres rejects raw text with NUL bytes. */
+async function termEvidence(pool: Pool, request: SearchRequest): Promise<{ termCount: number; allTermsMatch: boolean }> {
+  const terms = queryTerms(request.query);
+  if (terms.length === 0) return { termCount: 0, allTermsMatch: false };
+  const result = await pool.query<{ nodes: number; covered: boolean }>(`
+    SELECT numnode(q) AS nodes,
+      numnode(q) > 0 AND EXISTS (SELECT 1 FROM retrievable_chunks rc WHERE rc.search_vector @@ q AND ${FILTERS}) AS covered
+    FROM plainto_tsquery('english', $1) AS q`, [terms.join(" "), request.nation, request.asOfDate]);
+  const row = result.rows[0];
+  return { termCount: Math.ceil((row?.nodes ?? 0) / 2), allTermsMatch: row?.covered ?? false };
+}
+
 export type FusedChunk = { chunkId: string; fusedScore: number; lexicalRank: number | null; vectorRank: number | null; vectorSimilarity: number | null };
 
-/** Reciprocal Rank Fusion: score = Σ 1 / (k + rank). Uses ranks only, so the lists' raw scores need no normalising. */
-export function reciprocalRankFusion(lexical: readonly RankedChunk[], vector: readonly RankedChunk[], k = RRF_K): FusedChunk[] {
+/** Weighted Reciprocal Rank Fusion: score = Σ weight / (k + rank). Uses ranks only, so the lists' raw scores need no normalising. */
+export function reciprocalRankFusion(lexical: readonly RankedChunk[], vector: readonly RankedChunk[], k = RRF_K, vectorWeight = VECTOR_WEIGHT): FusedChunk[] {
   const fused = new Map<string, FusedChunk>();
   const entry = (chunkId: string) => fused.get(chunkId) ?? { chunkId, fusedScore: 0, lexicalRank: null, vectorRank: null, vectorSimilarity: null };
   for (const item of lexical) {
@@ -129,7 +147,7 @@ export function reciprocalRankFusion(lexical: readonly RankedChunk[], vector: re
   }
   for (const item of vector) {
     const current = entry(item.chunkId);
-    fused.set(item.chunkId, { ...current, fusedScore: current.fusedScore + 1 / (k + item.rank), vectorRank: item.rank, vectorSimilarity: item.similarity ?? null });
+    fused.set(item.chunkId, { ...current, fusedScore: current.fusedScore + vectorWeight / (k + item.rank), vectorRank: item.rank, vectorSimilarity: item.similarity ?? null });
   }
   return [...fused.values()].sort((a, b) => b.fusedScore - a.fusedScore || a.chunkId.localeCompare(b.chunkId));
 }
@@ -139,7 +157,7 @@ export function reciprocalRankFusion(lexical: readonly RankedChunk[], vector: re
  * overlap) and mid-sentence gets a leading ellipsis, so it is not read as a complete statement.
  */
 export function makeExcerpt(content: string, startsInsideSection = false): string {
-  const plain = content.replace(/^#{2,4} /gm, "").replace(/\s+/g, " ").trim();
+  const plain = content.replace(/^#{2,4} (.+)$/gm, "$1:").replace(/\s+/g, " ").trim();
   const lead = startsInsideSection && /^[a-z]/.test(plain) ? "…" : "";
   if (plain.length <= EXCERPT_CHARS) return `${lead}${plain}`;
   const cut = plain.slice(0, EXCERPT_CHARS);
@@ -248,13 +266,13 @@ async function semanticSide(dependencies: SearchDependencies, request: SearchReq
 export async function searchGuidance(dependencies: SearchDependencies, request: SearchRequest, mode: RetrievalMode = "hybrid"): Promise<SearchOutcome> {
   const { pool } = dependencies;
   // Both sides run concurrently: against a remote database every sequential round trip adds latency.
-  const [lexicalResult, vectorResult] = await Promise.all([lexicalSide(pool, request, mode), semanticSide(dependencies, request, mode)]);
+  const [lexicalResult, vectorResult, evidence] = await Promise.all([lexicalSide(pool, request, mode), semanticSide(dependencies, request, mode), termEvidence(pool, request)]);
   const { chunks: lexical, status: lexicalStatus } = lexicalResult;
   const { chunks: vector, status: vectorStatus } = vectorResult;
 
   const bestSimilarity = vectorStatus === "ok" ? (vector[0]?.similarity ?? null) : null;
   const minSimilarity = dependencies.minSimilarity ?? null;
-  const base = { lexical: lexicalStatus, vector: vectorStatus, bestSimilarity };
+  const base = { lexical: lexicalStatus, vector: vectorStatus, bestSimilarity, ...evidence };
   if (minSimilarity !== null && bestSimilarity !== null && bestSimilarity < minSimilarity) {
     // Nothing in the approved corpus is close enough: say so rather than show weak matches.
     return { ...base, results: [], relevance: "below_threshold" };

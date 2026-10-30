@@ -56,7 +56,7 @@ function copyText(response: ChatResponse): string {
   return [response.answer.map(sentence => sentence.text).join(" "), ...cited].join("\n");
 }
 
-function Answer({ turnId, response, seconds, onShowSources }: { turnId: number; response: ChatResponse; seconds: number; onShowSources: ShowSources }) {
+function Answer({ turnId, response, seconds, onShowSources, onPick }: { turnId: number; response: ChatResponse; seconds: number; onShowSources: ShowSources; onPick: (question: string) => void }) {
   const sourceById = new Map(response.sources.map(source => [source.id, source]));
   const grounded = response.mode === "grounded_answer";
 
@@ -78,6 +78,7 @@ function Answer({ turnId, response, seconds, onShowSources }: { turnId: number; 
           })}
         </p>
       : <p className="answer-text mt-3 text-muted">{response.message}</p>}
+    {response.abstainReason === "too_vague" && <SuggestionList onPick={onPick} align="left" />}
 
     {response.notices.length > 0 && <ul className="mt-4 space-y-1.5">
       {response.notices.map(notice => <li key={notice} className="flex gap-2 text-[13px] leading-snug text-muted"><Info size={14} className="shrink-0 mt-0.5 text-faint" aria-hidden="true" />{notice}</li>)}
@@ -95,7 +96,7 @@ function Answer({ turnId, response, seconds, onShowSources }: { turnId: number; 
   </div>;
 }
 
-function TurnView({ turn, onShowSources, onRetry }: { turn: Turn; onShowSources: ShowSources; onRetry: (turn: Turn) => void }) {
+function TurnView({ turn, onShowSources, onRetry, onPick }: { turn: Turn; onShowSources: ShowSources; onRetry: (turn: Turn) => void; onPick: (question: string) => void }) {
   return <section aria-label="Question and answer" className="scroll-mt-6" data-turn={turn.id}>
     <p className="ml-auto w-fit max-w-[85%] rounded-2xl bg-ink/[.06] px-4 py-2.5 leading-snug">
       {turn.question}{turn.nation !== null && <span className="text-sm text-faint"> · {NATION_LABELS[turn.nation]}</span>}
@@ -105,19 +106,26 @@ function TurnView({ turn, onShowSources, onRetry }: { turn: Turn; onShowSources:
       <p role="alert" className="text-danger">{turn.error}</p>
       <button type="button" onClick={() => onRetry(turn)} className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"><RotateCcw size={14} aria-hidden="true" /> Try again</button>
     </div>}
-    {turn.status === "done" && <Answer turnId={turn.id} response={turn.response} seconds={turn.seconds} onShowSources={onShowSources} />}
+    {turn.status === "done" && <Answer turnId={turn.id} response={turn.response} seconds={turn.seconds} onShowSources={onShowSources} onPick={onPick} />}
   </section>;
 }
 
 function Welcome() {
   return <div className="text-center mb-7">
     <h1 className="font-serif text-[34px] sm:text-[42px] leading-tight tracking-tight">What would you like to check?</h1>
-    <p className="text-muted mt-3 max-w-md mx-auto leading-relaxed">Answers come only from GOV.UK guidance we've reviewed: tax codes, income tax and National Insurance for now. If it isn't covered, we'll say so.</p>
+    <p className="text-muted mt-3 max-w-md mx-auto leading-relaxed">Answers come only from GOV.UK guidance we've reviewed. If it isn't covered, we'll say so.</p>
+    <details className="mt-3 text-sm text-muted">
+      <summary className="cursor-pointer hover:text-ink">What can WageWise answer?</summary>
+      <div className="mt-2 mx-auto max-w-md text-left leading-relaxed space-y-1">
+        <p><span className="text-ink">Can explain:</span> tax codes, Income Tax rates across the UK, Scottish and Welsh rates, and National Insurance.</p>
+        <p><span className="text-ink">Can't do:</span> personal advice, checking your own tax, or topics like pensions and benefits yet. Key links points to useful resources for those.</p>
+      </div>
+    </details>
   </div>;
 }
 
-function SuggestionList({ onPick }: { onPick: (question: string) => void }) {
-  return <ul aria-label="Example questions" className="flex flex-wrap justify-center gap-2 mt-5">
+function SuggestionList({ onPick, align = "center" }: { onPick: (question: string) => void; align?: "center" | "left" }) {
+  return <ul aria-label="Example questions" className={`flex flex-wrap gap-2 mt-5 ${align === "center" ? "justify-center" : ""}`}>
     {SUGGESTIONS.map(suggestion => <li key={suggestion}><button type="button" onClick={() => onPick(suggestion)} className={chipClass}>{suggestion}</button></li>)}
   </ul>;
 }
@@ -149,7 +157,9 @@ export function ChatPanel() {
     }
   }
 
-  const submit = () => void ask(question.trim(), nation === "" ? null : nation);
+  const chosenNation = nation === "" ? null : nation;
+  const submit = () => void ask(question.trim(), chosenNation);
+  const pick = (picked: string) => void ask(picked, chosenNation);
   const showSources: ShowSources = (turnId, highlightId, trigger) => {
     sourcesTrigger.current = trigger;
     setOpenSources({ turnId, highlightId });
@@ -173,7 +183,7 @@ export function ChatPanel() {
       <div className="min-h-full mx-auto max-w-[680px] px-4 py-8 flex flex-col justify-center">
         <Welcome />
         {composer("Ask about tax codes, income tax or National Insurance", true)}
-        <SuggestionList onPick={picked => void ask(picked, nation === "" ? null : nation)} />
+        <SuggestionList onPick={pick} />
         <p className="text-xs text-faint text-center mt-6">{INDEPENDENCE_NOTE}</p>
       </div>
     </div>;
@@ -185,7 +195,7 @@ export function ChatPanel() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div ref={thread} className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto max-w-[720px] px-4 sm:px-6 pt-6 pb-10 space-y-10" aria-live="polite">
-          {turns.map(turn => <TurnView key={turn.id} turn={turn} onShowSources={showSources} onRetry={failed => void ask(failed.question, failed.nation)} />)}
+          {turns.map(turn => <TurnView key={turn.id} turn={turn} onShowSources={showSources} onRetry={failed => void ask(failed.question, failed.nation)} onPick={pick} />)}
         </div>
       </div>
       <div className="mx-auto w-full max-w-[720px] px-4 sm:px-6 pb-3">

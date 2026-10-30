@@ -22,8 +22,13 @@ describe("queryTerms", () => {
 });
 
 describe("reciprocalRankFusion", () => {
+  it("counts vector ranks three times as heavily by default", () => {
+    const fused = reciprocalRankFusion([{ chunkId: "a", rank: 1 }], [{ chunkId: "b", rank: 2 }]);
+    expect(fused.map(item => item.chunkId)).toEqual(["b", "a"]);
+  });
+
   it("scores 1/(k + rank) from each list and sums them", () => {
-    const fused = reciprocalRankFusion([{ chunkId: "a", rank: 1 }, { chunkId: "b", rank: 2 }], [{ chunkId: "b", rank: 1 }]);
+    const fused = reciprocalRankFusion([{ chunkId: "a", rank: 1 }, { chunkId: "b", rank: 2 }], [{ chunkId: "b", rank: 1 }], 60, 1);
     const b = fused.find(item => item.chunkId === "b");
     expect(b?.fusedScore).toBeCloseTo(1 / (RRF_K + 2) + 1 / (RRF_K + 1), 12);
     expect(b).toMatchObject({ lexicalRank: 2, vectorRank: 1 });
@@ -42,7 +47,7 @@ describe("reciprocalRankFusion", () => {
 
 describe("makeExcerpt", () => {
   it("removes heading markers and collapses whitespace", () => {
-    expect(makeExcerpt("## Rates\n\nBasic  rate\n20%")).toBe("Rates Basic rate 20%");
+    expect(makeExcerpt("## Rates\n\nBasic  rate\n20%")).toBe("Rates: Basic rate 20%");
   });
 
   it("marks a chunk that starts mid-sentence inside its section", () => {

@@ -10,7 +10,7 @@ export const NATION_LABELS: Record<Nation, string> = {
 };
 
 export const SHORT_INDEPENDENCE_NOTE = "Independent project, not affiliated with GOV.UK. Not financial advice.";
-export const INDEPENDENCE_NOTE = "Independent project, not affiliated with or endorsed by GOV.UK, the UK Government, MoneyHelper or the FCA. General information only, not financial advice.";
+export const INDEPENDENCE_NOTE = "Independent project, not affiliated with or endorsed by GOV.UK, the UK Government, MoneyHelper, the FCA or the FSCS. General information only, not financial advice.";
 
 export const inputClass = "w-full h-11 bg-raised rounded-xl border border-ink/15 px-3 text-ink placeholder:text-faint focus:outline-none focus:border-accent";
 export const labelClass = "block text-xs text-muted mb-2";

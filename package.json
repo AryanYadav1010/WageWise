@@ -16,8 +16,10 @@
     "db:migrate": "npm run db:migrate -w @wagewise/api --",
     "ingest": "npm run ingest -w @wagewise/api --",
     "ingest:verify": "npm run ingest:verify -w @wagewise/api",
+    "ingest:check": "npm run ingest:check -w @wagewise/api",
     "embed": "npm run embed -w @wagewise/api",
     "eval:retrieval": "npm run eval:retrieval -w @wagewise/api --",
+    "eval:answers": "npm run eval:answers -w @wagewise/api --",
     "eval:check-labels": "npm run eval:check-labels -w @wagewise/api",
     "lint": "eslint apps/api/src apps/api/tests apps/web/src",
     "licence:review": "npm run licence:review -w @wagewise/api --"

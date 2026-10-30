@@ -128,4 +128,25 @@ describe("configuration", () => {
     expect(() => loadConfig({ PORT: "not-a-port-secret-value" })).toThrow(/PORT/);
     expect(() => loadConfig({ PORT: "not-a-port-secret-value" })).not.toThrow(/secret-value/);
   });
+
+  it("sends security headers, and no-store so a browser can't keep a stale answer", async () => {
+    const headers = (await (await startApp()).inject({ method: "GET", url: "/api/health" })).headers;
+    expect(headers["cache-control"]).toBe("no-store");
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["content-security-policy"]).toContain("default-src 'none'");
+  });
+
+  it("reports readiness from the database, without details", async () => {
+    const down = await buildApp({ config: testConfig(), holidaySnapshot: fixtureSnapshot, now: () => new Date("2026-10-28T12:00:00Z"), checkDatabase: async () => { throw new Error("password authentication failed"); } });
+    const response = await down.inject({ method: "GET", url: "/api/ready" });
+    expect(response.statusCode).toBe(503);
+    expect(response.body).not.toContain("password");
+    await down.close();
+    expect((await (await startApp()).inject({ method: "GET", url: "/api/ready" })).json()).toEqual({ status: "ready", database: "not_configured" });
+  });
+
+  it("refuses a non-https web origin in production", () => {
+    expect(() => loadConfig({ NODE_ENV: "production", WEB_ORIGIN: "http://example.com" })).toThrow("WEB_ORIGIN");
+    expect(loadConfig({ NODE_ENV: "production", WEB_ORIGIN: "https://example.com" }).WEB_ORIGIN).toBe("https://example.com");
+  });
 });
