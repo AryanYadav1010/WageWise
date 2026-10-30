@@ -1,0 +1,34 @@
+{
+  "name": "wagewise-uk",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"npm run dev -w @wagewise/api\" \"npm run dev -w @wagewise/web\"",
+    "test": "npm run test -w @wagewise/api && npm run test -w @wagewise/web",
+    "typecheck": "npm run typecheck -w @wagewise/api && npm run typecheck -w @wagewise/web",
+    "build": "npm run build -w @wagewise/api && npm run build -w @wagewise/web",
+    "holidays:refresh": "npm run holidays:refresh -w @wagewise/api",
+    "test:db": "npm run test:db -w @wagewise/api",
+    "db:migrate": "npm run db:migrate -w @wagewise/api --",
+    "ingest": "npm run ingest -w @wagewise/api --",
+    "ingest:verify": "npm run ingest:verify -w @wagewise/api",
+    "embed": "npm run embed -w @wagewise/api",
+    "eval:retrieval": "npm run eval:retrieval -w @wagewise/api --",
+    "eval:check-labels": "npm run eval:check-labels -w @wagewise/api",
+    "lint": "eslint apps/api/src apps/api/tests apps/web/src",
+    "licence:review": "npm run licence:review -w @wagewise/api --"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.39.5",
+    "typescript-eslint": "^8.72.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

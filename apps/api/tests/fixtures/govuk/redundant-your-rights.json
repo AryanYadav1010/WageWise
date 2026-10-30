@@ -1,0 +1,18 @@
+{
+  "base_path": "/redundant-your-rights",
+  "title": null,
+  "description": null,
+  "schema_name": "redirect",
+  "document_type": "redirect",
+  "public_updated_at": "2019-09-16T10:03:50+01:00",
+  "updated_at": "2019-09-16T10:03:50+01:00",
+  "withdrawn_notice": {},
+  "redirects": [
+    {
+      "destination": "/redundancy-your-rights",
+      "path": "/redundant-your-rights",
+      "type": "prefix"
+    }
+  ],
+  "details": {}
+}

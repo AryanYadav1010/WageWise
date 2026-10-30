@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Colours are space-separated RGB so Tailwind can apply opacity (bg-ink/5, border-ink/10). */
+:root {
+  color-scheme: light;
+  --page: 250 248 244;
+  --raised: 255 255 255;
+  --ink: 30 38 34;
+  --muted: 85 97 91;
+  --faint: 103 114 108;
+  --accent: 31 107 87;
+  --on-accent: 255 255 255;
+  --danger: 165 52 43;
+  --warn: 122 90 18;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: 20 24 22;
+    --raised: 28 33 31;
+    --ink: 228 231 228;
+    --muted: 169 178 173;
+    --faint: 143 153 148;
+    --accent: 124 196 174;
+    --on-accent: 16 32 26;
+    --danger: 240 163 154;
+    --warn: 226 194 122;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: 20 24 22;
+  --raised: 28 33 31;
+  --ink: 228 231 228;
+  --muted: 169 178 173;
+  --faint: 143 153 148;
+  --accent: 124 196 174;
+  --on-accent: 16 32 26;
+  --danger: 240 163 154;
+  --warn: 226 194 122;
+}
+
+html, body, #root { height: 100%; }
+body { margin: 0; min-width: 320px; background: rgb(var(--page)); color: rgb(var(--ink)); -webkit-font-smoothing: antialiased; }
+input, button, select, textarea { font: inherit; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+::selection { background: rgb(var(--accent) / .25); }
+
+.answer-text { font-family: theme('fontFamily.serif'); font-size: 19px; line-height: 1.6; }
+
+@keyframes wagewise-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rise { animation: wagewise-rise .22s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .rise { animation: none; } }

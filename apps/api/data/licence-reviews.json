@@ -1,0 +1,39 @@
+{
+  "reviews": [
+    {
+      "decision": "approved",
+      "reviewedBy": "Aryan Yadav",
+      "reviewedAt": "2026-10-29T16:03:00.834Z",
+      "notes": "Approved by Aryan Yadav on 29 Oct 2026 after reviewing docs/LICENCE_REVIEW_SUBSET_1.md (pre-check: no third-party material); recorded by Claude Code on their explicit instruction",
+      "basePath": "/income-tax-rates"
+    },
+    {
+      "decision": "approved",
+      "reviewedBy": "Aryan Yadav",
+      "reviewedAt": "2026-10-29T16:03:02.876Z",
+      "notes": "Approved by Aryan Yadav on 29 Oct 2026 after reviewing docs/LICENCE_REVIEW_SUBSET_1.md (pre-check: no third-party material); recorded by Claude Code on their explicit instruction",
+      "basePath": "/national-insurance"
+    },
+    {
+      "decision": "approved",
+      "reviewedBy": "Aryan Yadav",
+      "reviewedAt": "2026-10-29T16:03:01.503Z",
+      "notes": "Approved by Aryan Yadav on 29 Oct 2026 after reviewing docs/LICENCE_REVIEW_SUBSET_1.md (pre-check: no third-party material); recorded by Claude Code on their explicit instruction",
+      "basePath": "/scottish-income-tax"
+    },
+    {
+      "decision": "approved",
+      "reviewedBy": "Aryan Yadav",
+      "reviewedAt": "2026-10-29T16:03:00.159Z",
+      "notes": "Approved by Aryan Yadav on 29 Oct 2026 after reviewing docs/LICENCE_REVIEW_SUBSET_1.md (pre-check: no third-party material); recorded by Claude Code on their explicit instruction",
+      "basePath": "/tax-codes"
+    },
+    {
+      "decision": "approved",
+      "reviewedBy": "Aryan Yadav",
+      "reviewedAt": "2026-10-29T16:03:02.199Z",
+      "notes": "Approved by Aryan Yadav on 29 Oct 2026 after reviewing docs/LICENCE_REVIEW_SUBSET_1.md (pre-check: no third-party material); recorded by Claude Code on their explicit instruction",
+      "basePath": "/welsh-income-tax"
+    }
+  ]
+}
