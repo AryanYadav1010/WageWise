@@ -26,19 +26,23 @@ Chat is limited to 10 requests a minute, which this script doesn't reach.
 
 "It understood the follow-up and shows how: 'Answering: What is the higher rate? (England)'. It searched GOV.UK again rather than reusing the last answer. Earlier answers are never sent back, so the model can't treat its own words as evidence."
 
-**4. A comparison (10 seconds).** Ask *Compare the two.*
+**4. A comparison (15 seconds).** Ask *Compare the two.*
 
-"Each side is retrieved for its own nation and has to pass the checks by itself."
+"Each side is answered separately, from its own sources, so a figure can't end up on the wrong nation. If either side fails, nothing is shown."
+
+Ask *And last tax year?*
+
+"That follow-up applies to both sides."
 
 **5. A safe refusal (10 seconds).** Ask *And in 2022 to 2023?*
 
-"The approved guides don't cover that year, so it says so instead of using another year's figures."
+"The approved guides don't cover that year, so it refuses rather than use another year's figures or show half a comparison."
 
 **6. The payday calculator (10 seconds).** Open **Payday budget**, set the weekend rule to **The working day before**, and click **Calculate**.
 
 "This part uses no AI. It's whole-pence arithmetic with real UK bank holidays, so the 28 November payday moves to Friday the 27th."
 
-**Close (5 seconds).** "The benchmarks are in the repository, including held-out sets I can't tune on: 19 of 22 conversations and 18 of 20 questions on their blind runs. The misses were refusals and one partial answer. Reading those answers also found one false sentence the checks had passed. I fixed it, and it's why a person still has to review the answers."
+**Close (10 seconds).** "The benchmarks are in the repository. On a held-out conversation set, it went from 10 of 24 to 20 of 24, and a smaller fresh set then passed 15 of 15. Those are automatic checks, and I wrote the questions, so a person still has to review the answers. That review is prepared, but not done."
 
 ## If you're asked
 
@@ -46,4 +50,4 @@ Chat is limited to 10 requests a minute, which this script doesn't reach.
 - **Is it financial advice?** "No. It gives general information, and code removes recommendation wording and direct instructions."
 - **Where is the conversation stored?** "Only in the browser tab. The server keeps nothing between requests, so there are no sessions to leak, and New conversation or a refresh clears it."
 - **What can a forged history do?** "No more than typing the same words. History is treated as questions, never as facts, and the API rejects any field for an earlier answer."
-- **Is it live?** "No. It runs locally, and the database credentials are still to be rotated before any deployment."
+- **Is it live?** "No. It runs locally, and the database password has to be reset before any deployment."

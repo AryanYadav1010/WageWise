@@ -1,23 +1,30 @@
 # Human answer review
 
-**Status: needs doing on the current answers.** The owner reports reviewing an earlier set of answers, but no marks were recorded here, and V2.1 and V3 changed what WageWise says. This review must pass before any public release. The automatic checks catch invented figures, wrong sources and recommendation wording. They cannot tell whether an answer is right, so a person has to.
+**Status: not done.** No human review of the current answers is recorded. The owner reports reviewing an earlier set of answers, but no marks were recorded here, and V2.1 and V3 have changed what WageWise says, so that review can't be assumed to cover them.
 
-Allow about 8 hours for all 110 questions and 114 conversation turns. Many are refusals, which are quick. Do the review in the order below, so the riskiest answers are seen first. A reviewer needs no coding knowledge, only care and a browser. If the answers are to be relied on by the public, someone with UK tax knowledge should do it or check the result.
+The automatic checks catch invented figures, wrong sources and recommendation wording. They cannot tell whether an answer is right, so a person has to. In testing, an answer passed every automatic check and contained a false sentence. A reviewer needs no coding knowledge, only care and a browser. If the answers are to be relied on by the public, someone with UK tax knowledge should do it or check the result.
 
-## What you are reviewing
+## What to review
 
-Fill in the blank columns in these eight sheets. Open them on GitHub, where the tables and links display properly, and edit the same files to record your marks.
-
-| Order | Sheet | Questions | Why this order |
+| Stage | What | Size | Needed before |
 |---|---|---|---|
-| 1 | [27-advice-v3.md](../evals/answers/results/27-advice-v3.md) | 12 | "Should I…" questions: the highest regulatory risk |
-| 2 | [28-advice-holdout-v3.md](../evals/answers/results/28-advice-holdout-v3.md) | 8 | The same risk, in other wording |
-| 3 | [34-conversations-holdout-final.md](../evals/answers/results/34-conversations-holdout-final.md) | 44 turns | Conversations: new behaviour in V3, and unseen while building |
-| 4 | [25-conversations-dev.md](../evals/answers/results/25-conversations-dev.md) | 70 turns | Conversations: changing nation and year, comparisons, adversarial history |
-| 5 | [24-jurisdiction-v3.md](../evals/answers/results/24-jurisdiction-v3.md) | 20 | Nations and tax years |
-| 6 | [32-frozen-final.md](../evals/answers/results/32-frozen-final.md) | 30 | Main benchmark: facts, nations, tax years, refusals, injection |
-| 7 | [33-holdout-v3-final.md](../evals/answers/results/33-holdout-v3-final.md) | 20 | Casual wording: unseen while building |
-| 8 | [31-holdout-v2-v3.md](../evals/answers/results/31-holdout-v2-v3.md) | 20 | Casual wording |
+| **1. Priority** | [The priority sheet](../evals/answers/review/v3-priority.md): comparisons, past tax years, advice, and one row for each distinct fact | 66 rows, about 2 hours | Any wider demo |
+| 2. Full | The sheets below | 8 sheets, about 8 hours | A public release |
+
+Do the priority sheet first, top to bottom. Comparisons come first because a mistake there can attach a figure to the wrong nation, then past years, advice and figures.
+
+### Full sheets
+
+| Order | Sheet | Rows | Why this order |
+|---|---|---|---|
+| 1 | [42-advice-final.md](../evals/answers/results/42-advice-final.md) | 12 | "Should I…" questions: the highest regulatory risk |
+| 2 | [43-advice-holdout-final.md](../evals/answers/results/43-advice-holdout-final.md) | 8 | The same risk, in other wording |
+| 3 | [37-dev-v2-final.md](../evals/answers/results/37-dev-v2-final.md) | 61 turns | Comparisons and context |
+| 4 | [40-holdout-v3.md](../evals/answers/results/40-holdout-v3.md) | 31 turns | Comparisons and context, unseen while building |
+| 5 | [38-dev-v1-final.md](../evals/answers/results/38-dev-v1-final.md) | 70 turns | Changing nation and year, adversarial history |
+| 6 | [41-jurisdiction-final.md](../evals/answers/results/41-jurisdiction-final.md) | 20 | Nations and tax years |
+| 7 | [32-frozen-final.md](../evals/answers/results/32-frozen-final.md) | 30 | Main benchmark: facts, nations, tax years, refusals, injection |
+| 8 | [46-holdout-v3-single-final.md](../evals/answers/results/46-holdout-v3-single-final.md) | 20 | Casual wording |
 
 Each sheet shows one answer per question, with the GOV.UK section it cites. The model words things differently between runs, so you are reviewing a sample of what WageWise says, not every answer it could give.
 
@@ -54,9 +61,9 @@ Refusing a question it could have answered is a quality problem, not a stop. Log
 
 ## Known items to look at closely
 
-- **Refused rows in sheets 3, 7 and 8:** a known gap. They count against quality, not as stop items.
+- **Refused rows:** a known gap. They count against quality, not as stop items.
 - **Anything claiming a rule is the same elsewhere in the UK:** the checks caught two false versions of this, but other wording could pass.
-- **Comparisons:** check each figure is attached to the right nation or year in the sentence. Code can only check it is in the cited passage.
+- **Comparisons:** check each figure is under the right heading, and that both sides really answer the same kind of question.
 - **`a-12` "Which tax code should I ask for?":** it describes 1257L as the code most people have. Does that read as a suggestion?
 - **`b-03` "Am I better off…":** it says the online service is the quickest way. That comes from GOV.UK, but does it answer the question as a recommendation?
 - **Past tax years:** check that the figures match the year asked about, not the current year.
@@ -64,18 +71,19 @@ Refusing a question it could have answered is a quality problem, not a stop. Log
 
 ## Sign-off
 
-The review passes when no stop item remains open and every **no** has been fixed or accepted in writing. Any change to the model, prompt, thresholds or approved guides needs the affected sheets regenerated and reviewed again.
+A review counts only when it is recorded here, with the commit reviewed. It passes when no stop item remains open and every **no** has been fixed or accepted in writing. Any change to the model, prompt, thresholds, guides or answer code needs the affected sheets regenerated with `npm run review:sheet` and reviewed again. A sign-off on earlier answers doesn't carry over.
 
-| Sheet | Reviewer | Date | Rows marked no | Stop items | Result |
-|---|---|---|---|---|---|
-| 27-advice-v3 | | | | | |
-| 28-advice-holdout-v3 | | | | | |
-| 34-conversations-holdout-final | | | | | |
-| 25-conversations-dev | | | | | |
-| 24-jurisdiction-v3 | | | | | |
-| 32-frozen-final | | | | | |
-| 33-holdout-v3-final | | | | | |
-| 31-holdout-v2-v3 | | | | | |
+| Sheet | Commit reviewed | Reviewer | Date | Rows marked no | Stop items | Result |
+|---|---|---|---|---|---|---|
+| Priority sheet (stage 1) | | | | | | |
+| 42-advice-final | | | | | | |
+| 43-advice-holdout-final | | | | | | |
+| 37-dev-v2-final | | | | | | |
+| 40-holdout-v3 | | | | | | |
+| 38-dev-v1-final | | | | | | |
+| 41-jurisdiction-final | | | | | | |
+| 32-frozen-final | | | | | | |
+| 46-holdout-v3-single-final | | | | | | |
 
 **Overall decision (pass or fail):** ____________  **Name:** ____________  **Date:** ____________
 

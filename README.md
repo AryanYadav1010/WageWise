@@ -36,9 +36,10 @@ npm run licence:review -- --path /guide --decision approved --reviewer "Your Nam
 npm run ingest && npm run embed && npm run eval:retrieval
 npm run eval:answers -- --label my-change    # answer quality, real model; small API cost
 npm run eval:conversations -- --label my-change    # multi-turn quality, real model
+npm run review:sheet -- --commit <hash>    # rebuild the priority human review after answers change
 ```
 
-Before a public release, a person must complete [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md).
+**Status:** a release candidate for private demos. It isn't deployed, and no human review of the current answers is recorded. Before a public release, a person must complete [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md), and the Neon password must be reset.
 
 After changing the approved guides, recheck `SEARCH_MIN_SIMILARITY` and `ANSWER_MIN_SIMILARITY` against the benchmarks. See [docs/LICENCE_REVIEW.md](docs/LICENCE_REVIEW.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
