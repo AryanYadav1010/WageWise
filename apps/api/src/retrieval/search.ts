@@ -1,7 +1,7 @@
 import type { Pool } from "../db/pool.ts";
 import { embedWithRetry, toVectorLiteral, type EmbeddingProvider, type RetryOptions } from "../embeddings/provider.ts";
 import { NATIONS } from "../ingest/corpus.ts";
-import { readJurisdiction, taxYearStart } from "./jurisdiction.ts";
+import { finalQuestion, readJurisdiction, searchSubject, taxYearStart } from "./jurisdiction.ts";
 
 // Hybrid retrieval over the `retrievable_chunks` view only: approved licence, live page,
 // active version. Nothing else in the database is reachable from here.
@@ -127,7 +127,10 @@ export async function vectorSearch(pool: Pool, queryVector: readonly number[], m
 }
 
 // Common in any passage, so finding them proves nothing: "How much will I get?" isn't a question about the rates table.
-const GENERIC_TERMS = new Set(["much", "many", "get", "got"]);
+// "Highest" and "lowest" are readings of a table, not words in one.
+const GENERIC_TERMS = new Set(["much", "many", "get", "got", "highest", "lowest"]);
+/** GOV.UK names each band "… rate", so a question about a band is about that rate. */
+const specificTerms = (terms: readonly string[]) => terms.filter(term => !GENERIC_TERMS.has(term)).map(term => term === "band" || term === "bands" ? "rate" : term);
 
 /** How well the corpus covers the query's words. Uses queryTerms because Postgres rejects raw text with NUL bytes. */
 async function termEvidence(pool: Pool, request: SearchRequest): Promise<{ termCount: number; allTermsMatch: boolean; ownGuideMatch: boolean }> {
@@ -140,7 +143,7 @@ async function termEvidence(pool: Pool, request: SearchRequest): Promise<{ termC
         SELECT 1 FROM retrievable_chunks rc WHERE rc.search_vector @@ specific AND ${FILTERS} AND cardinality(rc.nations) < ${NATIONS.length}
       ) AS own_guide
     FROM plainto_tsquery('english', $1) AS q, plainto_tsquery('english', $4) AS specific`,
-  [terms.join(" "), request.nation, request.asOfDate, terms.filter(term => !GENERIC_TERMS.has(term)).join(" ")]);
+  [terms.join(" "), request.nation, request.asOfDate, specificTerms(terms).join(" ")]);
   const row = result.rows[0];
   return { termCount: Math.ceil((row?.nodes ?? 0) / 2), allTermsMatch: row?.covered ?? false, ownGuideMatch: row?.own_guide ?? false };
 }
@@ -285,9 +288,9 @@ async function semanticSide(dependencies: SearchDependencies, request: SearchReq
 export async function searchGuidance(dependencies: SearchDependencies, request: SearchRequest, mode: RetrievalMode = "hybrid"): Promise<SearchOutcome> {
   const { pool } = dependencies;
   const { nation, text } = readJurisdiction(request.query, request.nation);
-  const scoped = { ...request, nation, query: text, asOfDate: taxYearStart(request.query) ?? request.asOfDate };
+  const scoped = { ...request, nation, query: searchSubject(text), asOfDate: taxYearStart(request.query) ?? request.asOfDate };
   // Both sides run concurrently: against a remote database every sequential round trip adds latency.
-  const [lexicalResult, vectorResult, evidence] = await Promise.all([lexicalSide(pool, scoped, mode), semanticSide(dependencies, scoped, mode), termEvidence(pool, scoped)]);
+  const [lexicalResult, vectorResult, evidence] = await Promise.all([lexicalSide(pool, scoped, mode), semanticSide(dependencies, scoped, mode), termEvidence(pool, { ...scoped, query: finalQuestion(scoped.query) })]);
   const { chunks: lexical, status: lexicalStatus } = lexicalResult;
   const { chunks: vector, status: vectorStatus } = vectorResult;
 

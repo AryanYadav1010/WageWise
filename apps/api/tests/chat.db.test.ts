@@ -123,3 +123,46 @@ describe("prompt injection stored in a guide", () => {
     expect(reply.dropReasons).toEqual({ unknown_source: 1 });
   });
 });
+
+describe("a conversation over the real retrieval stack", () => {
+  const scottish = { question: "What are the income tax rates and bands?", nation: "scotland" } as const;
+  const rates = (reply: { sources: { url: string }[] }) => sentUrls(reply).map(url => new URL(url).pathname.split("/")[1]);
+
+  it("retrieves again for each turn, so a follow-up never reuses the last turn's nation's sources", async () => {
+    await seed();
+    const first = await ask(recordingModel(abstain), { question: scottish.question, nation: null, asOfDate: "2026-10-28" });
+    const followUp = await ask(recordingModel(abstain), { question: "What about Scotland?", nation: null, asOfDate: "2026-10-28", history: first.conversation.turns });
+    expect(followUp.conversation).toMatchObject({ kind: "follow_up", nation: "scotland" });
+    expect(rates(followUp)).toContain("scottish-income-tax");
+    expect(rates(followUp)).not.toContain("income-tax-rates");
+    expect(rates(followUp)).not.toContain("welsh-income-tax");
+  });
+
+  it("stops showing a guide withdrawn between turns: nothing is carried over", async () => {
+    await seed();
+    const model = recordingModel(abstain);
+    const first = await ask(model, { ...scottish, asOfDate: "2026-10-28", history: [] });
+    expect(rates(first)).toContain("scottish-income-tax");
+    await database.pool.query("UPDATE source_documents SET lifecycle_status = 'withdrawn' WHERE base_path = '/scottish-income-tax'");
+    const after = await ask(model, { question: "What about Scotland?", nation: null, asOfDate: "2026-10-28", history: first.conversation.turns });
+    expect(rates(after)).not.toContain("scottish-income-tax");
+  });
+
+  it("compares two nations from guides for each, and shows the model both", async () => {
+    await seed();
+    const model = recordingModel(abstain);
+    const history = [scottish, { question: scottish.question, nation: "wales" as const }];
+    const reply = await ask(model, { question: "Compare the two.", nation: null, asOfDate: "2026-10-28", history });
+    expect(reply.conversation.kind).toBe("comparison");
+    expect(rates(reply)).toEqual(expect.arrayContaining(["scottish-income-tax", "welsh-income-tax"]));
+  });
+
+  it("refuses a year no section covers, even though undated guidance matches", async () => {
+    await seed();
+    const model = recordingModel(say("Unreachable.", ["S1"]));
+    const reply = await ask(model, { question: "What are the Scottish income tax rates in 2019 to 2020?", nation: null, asOfDate: "2026-10-28" });
+    expect(reply.mode).toBe("abstained");
+    expect(reply.conversation.asOfDate).toBe("2019-04-06");
+    expect(model.prompts).toHaveLength(0);
+  });
+});

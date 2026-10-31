@@ -160,6 +160,33 @@ describe("nations and tax years named in the query", () => {
     expect(await floored("How much is Child Benefit?", "scotland")).toMatchObject({ relevance: "below_threshold", results: [] });
   });
 
+  it("doesn't count the way a question is asked as words the guidance must contain", async () => {
+    const plain = signals(await search("What is the advanced rate?", { nation: "scotland" }));
+    for (const asked of ["Please tell me the advanced rate?", "Can you tell me the advanced rate?", "I want to know the advanced rate?"]) {
+      expect(signals(await search(asked, { nation: "scotland" })).ownGuideMatch).toBe(plain.ownGuideMatch);
+      expect((await search(asked, { nation: "scotland" })).termCount).toBe(plain.termCount);
+    }
+  });
+
+  it("doesn't count a named tax year as evidence, because it is already the filter", async () => {
+    const named = await search("Scottish starter rate for the 2025 to 2026 tax year");
+    expect(named).toMatchObject({ allTermsMatch: true, termCount: 2 });
+    expect(urls(named)).toContain("https://www.gov.uk/scottish-income-tax/2025-to-2026-tax-year");
+  });
+
+  it("reads a band as the rate GOV.UK names it after, and highest or lowest as no evidence at all", async () => {
+    expect((await search("starter band", { nation: "scotland" })).ownGuideMatch).toBe(true);
+    expect((await search("highest income tax rate", { nation: "scotland" })).ownGuideMatch).toBe(true);
+    expect((await search("council tax band", { nation: "scotland" })).ownGuideMatch).toBe(false);
+    expect((await search("highest capital gains tax rate", { nation: "scotland" })).ownGuideMatch).toBe(false);
+  });
+
+  it("judges coverage on the question, and searches on everything the person said", async () => {
+    const outcome = await search("I earn £40,000 at a bakery. What is the advanced rate?", { nation: "scotland" });
+    expect(outcome.ownGuideMatch).toBe(true);
+    expect((await search("I earn £40,000 at a bakery. What is the advanced rate?", { nation: "scotland" })).termCount).toBe(2);
+  });
+
   it("uses a tax year named in the query, whichever way it is written", async () => {
     const past = "https://www.gov.uk/scottish-income-tax/2025-to-2026-tax-year";
     for (const year of ["2025 to 2026", "2025/26", "2025-26"]) {

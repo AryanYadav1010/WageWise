@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.ts";
 import type { ChatAnswer, ChatRequest } from "../src/chat/answer.ts";
 import type { ChatService } from "../src/chat-route.ts";
@@ -24,8 +24,10 @@ const grounded: ChatAnswer = {
   dropReasons: {},
   personalAdviceRequested: false,
   modelId: "test:fake",
-  usage: { tokens: 0, cached: false, retrievalMs: 0, modelMs: 0 }
+  usage: { tokens: 0, cached: false, retrievalMs: 0, modelMs: 0 },
+  conversation: { kind: "standalone", turns: [{ question: "What is the starter rate?", nation: "scotland" }], nation: "scotland", asOfDate: "2026-10-28", clarifyNations: [] }
 };
+const inConversation = (conversation: Partial<ChatAnswer["conversation"]>): ChatAnswer => ({ ...grounded, conversation: { ...grounded.conversation, ...conversation } });
 
 function fakeChat(reply: ChatAnswer | Error) {
   const requests: ChatRequest[] = [];
@@ -47,7 +49,7 @@ const post = (instance: FastifyInstance, payload: unknown) => instance.inject({ 
 describe("jurisdiction and tax year", () => {
   const ask = async (chat: ChatService, payload: object) => (await post(await start(chat), payload)).json();
 
-  it("reports the nation named in the question as the one applied, with no 'you didn't say' notice", async () => {
+  it("reports the nation applied, with no 'you didn't say' notice", async () => {
     const { chat, requests } = fakeChat(grounded);
     const body = await ask(chat, { question: "What is the higher rate in Scotland?" });
     expect(body.request.jurisdiction).toBe("scotland");
@@ -57,17 +59,72 @@ describe("jurisdiction and tax year", () => {
   });
 
   it("offers the named nation when it conflicts with the selection", async () => {
-    const { chat } = fakeChat({ ...grounded, mode: "abstained", answer: [], abstainReason: "nation_conflict", sources: [] });
+    const { chat } = fakeChat({ ...inConversation({ kind: "unresolved", turns: [], nation: "england", clarifyNations: ["scotland"] }), mode: "abstained", answer: [], abstainReason: "nation_conflict", sources: [] });
     const body = await ask(chat, { question: "What is the higher rate in Scotland?", jurisdiction: "england" });
     expect(body).toMatchObject({ abstainReason: "nation_conflict", clarifyNations: ["scotland"], request: { jurisdiction: "england" } });
     expect(body.message).toContain("different part of the UK");
   });
 
-  it("uses a tax year named in the question as the date", async () => {
-    const { chat, requests } = fakeChat(grounded);
+  it("gives the pipeline today's date and reports the date it used", async () => {
+    const { chat, requests } = fakeChat(inConversation({ asOfDate: "2025-04-06" }));
     const body = await ask(chat, { question: "What were the rates in 2025/26?" });
     expect(body.request.asOfDate).toBe("2025-04-06");
-    expect(requests[0]?.asOfDate).toBe("2025-04-06");
+    expect(requests[0]?.asOfDate).toBe("2026-10-28");
+  });
+});
+
+describe("conversation history", () => {
+  const ask = async (chat: ChatService, payload: object) => (await post(await start(chat), payload)).json();
+  const turn = { question: "What is the higher rate?", nation: "scotland" };
+
+  it("passes history to the pipeline and returns what to remember", async () => {
+    const { chat, requests } = fakeChat(inConversation({ kind: "follow_up" }));
+    const body = await ask(chat, { question: "What about Wales?", history: [turn] });
+    expect(requests[0]?.history).toEqual([turn]);
+    expect(body.conversation).toEqual({ kind: "follow_up", turns: [{ question: "What is the starter rate?", nation: "scotland" }] });
+  });
+
+  it.each([
+    ["more turns than allowed", { history: Array.from({ length: 7 }, () => turn) }],
+    ["an earlier answer", { history: [{ ...turn, answer: "The higher rate is 10%." }] }],
+    ["a chat role", { history: [{ ...turn, role: "assistant" }] }],
+    ["an oversized turn", { history: [{ question: "a".repeat(601), nation: null }] }],
+    ["a bad nation", { history: [{ question: "What is the rate?", nation: "france" }] }],
+    ["a turn without a nation field", { history: [{ question: "What is the rate?" }] }]
+  ])("rejects history with %s and never calls the model", async (_label, extra) => {
+    const { chat, requests } = fakeChat(grounded);
+    expect((await post(await start(chat), { question: "What about Wales?", ...extra })).statusCode).toBe(400);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("says when a follow-up moves to another nation", async () => {
+    const { chat } = fakeChat(inConversation({ kind: "follow_up", nation: "wales" }));
+    const body = await ask(chat, { question: "What about Wales?", history: [turn] });
+    expect(body.notices.join(" ")).toContain("This answer is for Wales. Your last question was about Scotland.");
+  });
+
+  it("says when a new question is not limited to the nation discussed before", async () => {
+    const { chat } = fakeChat(inConversation({ nation: null }));
+    const body = await ask(chat, { question: "What is the basic rate?", history: [turn] });
+    expect(body.notices.join(" ")).toContain("isn't limited to Scotland");
+  });
+
+  it("doesn't ask where you live when comparing two nations", async () => {
+    const { chat } = fakeChat(inConversation({ kind: "comparison", nation: null }));
+    const body = await ask(chat, { question: "Compare the two.", history: [turn, { ...turn, nation: "wales" }] });
+    expect(body.notices.join(" ")).not.toMatch(/didn't say where|isn't limited/);
+  });
+
+  it("logs that a conversation happened, never what was said in it", async () => {
+    const logged: object[] = [];
+    const { chat: answer } = fakeChat(inConversation({ kind: "follow_up" }));
+    const chat: ChatService = (request, logger) => {
+      vi.spyOn(logger as FastifyBaseLogger, "info").mockImplementation((details: unknown) => { logged.push(details as object); });
+      return answer(request, logger);
+    };
+    await post(await start(chat), { question: "And my salary of £41,234?", history: [{ question: "I earn £39,876 in Paisley", nation: "scotland" }] });
+    expect(logged).toContainEqual(expect.objectContaining({ conversation: "follow_up", historyTurns: 1 }));
+    expect(JSON.stringify(logged)).not.toMatch(/41,234|39,876|Paisley/);
   });
 });
 
@@ -92,7 +149,7 @@ describe("POST /api/chat", () => {
     expect(body).toMatchObject({ mode: "grounded_answer", isGroundedAnswer: true, message: null, traceId: response.headers["x-request-id"] });
     expect(body.sources[0]).toMatchObject({ id: "S1", cited: true });
     expect(body.disclaimer).toMatch(/not financial advice/);
-    expect(requests[0]).toEqual({ question: "What is the Scottish starter rate?", nation: "scotland", asOfDate: "2026-10-28" });
+    expect(requests[0]).toEqual({ question: "What is the Scottish starter rate?", nation: "scotland", asOfDate: "2026-10-28", history: [] });
   });
 
   it("explains an abstention in plain language", async () => {

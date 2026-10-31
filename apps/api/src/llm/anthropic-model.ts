@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { AnswerModelError, answerDraftSchema, type AnswerDraft, type AnswerModel, type AnswerPrompt, type CostedDraft } from "./answer-model.ts";
+import type { z } from "zod/v4";
+import { followUpRewriteSchema, type FollowUpRewrite } from "../chat/follow-up.ts";
+import { AnswerModelError, answerDraftSchema, type AnswerModel, type AnswerPrompt, type CostedDraft } from "./answer-model.ts";
 
 export type AnthropicModelOptions = {
   apiKey: string;
@@ -16,6 +18,9 @@ export type AnthropicModelOptions = {
   /** Tests inject a fake HTTP layer; production uses the global fetch. */
   fetch?: typeof fetch;
 };
+
+/** A rewrite is short, and an answer still has to follow within the browser's 45-second limit. */
+const REWRITE_TIMEOUT_MS = 8_000;
 
 /**
  * Claude via the official SDK. Structured output constrains the reply to the AnswerDraft
@@ -53,32 +58,40 @@ export class AnthropicAnswerModel implements AnswerModel {
     return this.usage.tokens;
   }
 
-  async draft(prompt: AnswerPrompt): Promise<CostedDraft> {
+  draft(prompt: AnswerPrompt): Promise<CostedDraft> {
+    // Eight sentences of 40 words with citations fit comfortably: this is the per-request ceiling.
+    return this.limited(() => this.request(prompt, answerDraftSchema, 1_200));
+  }
+
+  rewrite(prompt: AnswerPrompt): Promise<FollowUpRewrite & { tokens: number }> {
+    return this.limited(() => this.request(prompt, followUpRewriteSchema, 200, Math.min(REWRITE_TIMEOUT_MS, this.timeoutMs)));
+  }
+
+  private async limited<T>(work: () => Promise<T>): Promise<T> {
     if (this.tokensToday() >= this.dailyTokenLimit) throw new AnswerModelError("rate_limited", "The daily answer budget is used up");
     if (this.inFlight >= this.maxConcurrent) throw new AnswerModelError("rate_limited", "Too many answers in progress");
     this.inFlight += 1;
     try {
-      return await this.request(prompt);
+      return await work();
     } finally {
       this.inFlight -= 1;
     }
   }
 
-  private async request(prompt: AnswerPrompt): Promise<CostedDraft> {
+  private async request<Schema extends z.ZodType>(prompt: AnswerPrompt, schema: Schema, maxTokens: number, timeoutMs = this.timeoutMs): Promise<z.infer<Schema> & { tokens: number }> {
     let response: Anthropic.Message;
     try {
       // create(), not parse(): a refusal or a truncated reply may not match the schema, and we
       // must check stop_reason before trying to read JSON (parse() would throw first).
       response = await this.client.messages.create({
         model: this.model,
-        // Eight sentences of 40 words with citations fit comfortably: this is the per-request ceiling.
-        max_tokens: 1_200,
+        max_tokens: maxTokens,
         // A short extraction-style task: low effort keeps latency and cost down.
-        output_config: { effort: "low", format: zodOutputFormat(answerDraftSchema) },
+        output_config: { effort: "low", format: zodOutputFormat(schema) },
         system: prompt.system,
         messages: [{ role: "user", content: prompt.user }]
       // The client timeout applies to each attempt; this signal caps all attempts together.
-      }, { signal: AbortSignal.timeout(this.timeoutMs) });
+      }, { signal: AbortSignal.timeout(timeoutMs) });
     } catch (error) {
       throw toAnswerModelError(error);
     }
@@ -91,19 +104,19 @@ export class AnthropicAnswerModel implements AnswerModel {
       throw new AnswerModelError("invalid_output", "The model's answer was cut off");
     }
     const text = response.content.flatMap(block => (block.type === "text" ? [block.text] : [])).join("");
-    return { ...parseDraft(text), tokens };
+    return { ...(parseReply(text, schema) as object), tokens } as z.infer<Schema> & { tokens: number };
   }
 }
 
 /** Validates the model's JSON with the same schema that constrained it; anything else is rejected. */
-function parseDraft(text: string): AnswerDraft {
+function parseReply<Schema extends z.ZodType>(text: string, schema: Schema): z.infer<Schema> {
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
     throw new AnswerModelError("invalid_output", "The model did not return valid JSON");
   }
-  const parsed = answerDraftSchema.safeParse(json);
+  const parsed = schema.safeParse(json);
   if (!parsed.success) throw new AnswerModelError("invalid_output", "The model's answer did not match the expected shape");
   return parsed.data;
 }

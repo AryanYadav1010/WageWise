@@ -49,6 +49,7 @@ The interface is inspired by answer engines such as Perplexity: one question box
 | Feature | What it does | User story |
 |---|---|---|
 | **Ask** | Grounded answers with numbered citations and a sources panel | "As an employee, I want a short answer I can verify, so I can trust it." |
+| **Follow-ups** | "What about Scotland?", "And last tax year?", "Compare the two", with fresh retrieval and checks on every turn, and a New conversation button | "I want to ask the next thing without repeating myself, and still get an answer I can check." |
 | **Search guidance** | Finds matching official passages without writing an answer | "I want to read the source myself." |
 | **Key links** | A small directory of official pages by topic | "I just want the right page." |
 | **Payday budget** | Works out money left before payday, including weekends and bank holidays for each UK nation | "I want to know what I can spend per day until payday." |
@@ -77,6 +78,7 @@ The interface is inspired by answer engines such as Perplexity: one question box
 - Full pipeline from GOV.UK ingestion to a checked answer in the browser.
 - 25 guides stored with version history; **5 approved and searchable**.
 - Hybrid retrieval, relevance threshold, citation checks and abstention (refusing to answer).
+- Multi-turn conversations held only in the browser tab. Earlier answers are never sent back, and every turn is retrieved and checked again.
 - Reading-first web app on desktop and mobile, with light and dark themes.
 - Payday budget calculator, written with whole-pence arithmetic.
 - Automated tests, labelled retrieval and answer benchmarks, and CI workflow files.
@@ -89,11 +91,10 @@ The interface is inspired by answer engines such as Perplexity: one question box
 - **Production data.** The production database branch has no approved content yet.
 - **Streaming answers.** The answer appears all at once.
 - **Follow-up question suggestions.**
-- **Conversation memory.** Each question is answered on its own, by design.
-- **Accounts or saved history.**
+- **Accounts or saved history.** A conversation lasts as long as the browser tab.
 - **Dashboards and alerting.** Logs contain the data, but nothing watches them yet.
 - **CI on GitHub.** The code is in a private repository, but GitHub doesn't start workflows there (`startup_failure`, 30 Oct), as on another private repository on the same account. The same CI steps pass on a clean clone of the pushed commit, run locally.
-- **A recorded human review of the current answers.** The owner reports reviewing earlier answers, but no marks are recorded in this repository, and the answers changed on 31 Oct. See the [checklist](docs/ANSWER_REVIEW_CHECKLIST.md).
+- **A recorded human review of the current answers.** The owner reports reviewing earlier answers, but no marks are recorded in this repository, and the answers changed again in V3. See the [checklist](docs/ANSWER_REVIEW_CHECKLIST.md).
 
 ---
 
@@ -104,7 +105,7 @@ Think of WageWise as a careful librarian rather than a clever talker.
 1. **The library (ingestion).** A script downloads a curated list of guides from GOV.UK's official Content API, splits them into sections and small passages ("chunks"), and stores every version. Nothing is overwritten, so there is always a record of what GOV.UK said.
 2. **The licence check.** A person reviews each guide. Unapproved guides stay in storage, but nothing can search them or send them to the AI. The database enforces this.
 3. **The index (embeddings).** Each approved passage is converted into 384 numbers that represent its meaning. Passages with similar meanings get similar numbers.
-4. **The question.** You ask something and, optionally, choose your nation. The question is validated first.
+4. **The question.** You ask something and, optionally, choose your nation. The question is validated first. If it depends on the conversation, it is first turned into a complete question, shown above the answer as "Answering: …". Your browser sends the earlier questions, never the earlier answers.
 5. **The search (retrieval).** WageWise searches two ways at once: by exact words (good for "1257L") and by meaning (good for "my employer took too much tax"). It merges the two rankings. Filters remove anything from the wrong nation, outside its tax year, or unapproved.
 6. **The relevance check.** WageWise needs a strong match, or a fair match where one passage contains every meaningful word of the question. Otherwise it says it won't guess, and the AI isn't called at all. A one-word question like "pension" gets a request for more detail.
 7. **The answer (generation).** Claude Haiku 5.5 receives the passages with strict rules: use only these sources, cite them, and treat their text as data rather than instructions.
@@ -151,8 +152,14 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  Q[Question + nation + date] --> V[Validate: 3 to 500 characters, no extra fields]
-  V --> S[Hybrid search: approved, live, right nation, in date]
+  Q[Question + nation + date + earlier questions] --> V[Validate: 3 to 500 characters, at most 6 earlier questions, no extra fields]
+  V --> R{Depends on the conversation?}
+  R -->|No| S[Hybrid search: approved, live, right nation, in date]
+  R -->|Nation or year changed, or compare| CODE[Code resolves it, no AI call]
+  R -->|Refers back in other ways| RW[Haiku rewrites earlier questions into one question]
+  R -->|Can't tell| A5[Ask for the full question]
+  CODE --> S
+  RW --> S
   S -->|One vague word| A0[Ask for more detail]
   S -->|Nothing relevant| A1[Abstain: no AI call]
   S -->|Evidence found| F[Withhold passages containing AI instructions]
@@ -202,7 +209,7 @@ wagewise-uk-clean/
 ├─ apps/
 │  ├─ api/                  backend
 │  │  ├─ data/              bank holidays, licence decisions
-│  │  ├─ src/chat/          answer pipeline and citation checks
+│  │  ├─ src/chat/          answer pipeline, follow-up resolution and citation checks
 │  │  ├─ src/retrieval/     hybrid search and benchmark logic
 │  │  ├─ src/embeddings/    local embedding model and batch job
 │  │  ├─ src/ingest/        GOV.UK fetching, parsing, chunking, storage, verification
@@ -211,7 +218,7 @@ wagewise-uk-clean/
 │  │  ├─ src/db/            connections and migration runner
 │  │  ├─ src/cli/           commands such as ingest, embed, eval
 │  │  └─ tests/             unit, HTTP and database tests
-│  └─ web/src/              React app: chat, sources panel, search, budget
+│  └─ web/                  React app (src/) and the browser check (tests/)
 ├─ db/migrations/           database schema, in numbered SQL files
 ├─ evals/                   retrieval and answer benchmarks, with their reports
 ├─ docs/                    licence review records, deployment plan
@@ -221,7 +228,7 @@ wagewise-uk-clean/
 ### API
 | Route | Purpose | Limit per IP per minute |
 |---|---|---|
-| `POST /api/chat` | Grounded answer | 10 |
+| `POST /api/chat` | Grounded answer. Takes up to 6 earlier `{question, nation}` turns, and has no field for an earlier answer | 10 |
 | `POST /api/guidance/search` | Passage search | 20 |
 | `POST /api/source-search` | Link directory | 60 |
 | `POST /api/budget` | Payday calculation | 60 |
@@ -303,10 +310,11 @@ GOV.UK excerpts are shown with this attribution: *Contains public sector informa
 | **Hybrid before V2** | 95% | 0.883 | 0 | 373 ms |
 | **Hybrid in V2** | **100%** | **0.925** | **0** | **331 ms** |
 | **Hybrid in V2.1** | **100%** | **0.925** | **0** | **474 ms** |
+| **Hybrid in V3** | **100%** | **0.925** | **0** | **496 ms** |
 
 *Recall@5: how often the right section appears in the top 5. MRR: how near the top it appears, where 1.0 is always first.*
 
-Hybrid improved in V2 because vector ranks count three times as much as keyword ranks. V2.1 changed no retrieval score: its gain is in refusals and nation handling, measured below. Keyword-only MRR fell from 0.742 to 0.717 in V2.1, but keyword-only isn't what the app uses.
+Hybrid improved in V2 because vector ranks count three times as much as keyword ranks. V2.1 and V3 changed no retrieval score, and no frozen question moved rank in V3: their gains are in refusals, nation handling and conversations, measured below. Keyword-only MRR fell from 0.742 to 0.717 in V2.1, but keyword-only isn't what the app uses.
 
 Vector search alone still has a higher MRR because of one question out of 20 (`nat-08`). A vector weight of 8 would match it, but tuning to one question would be overfitting, so the weight stays at 3. Keywords don't improve ranking on this dataset. They are kept for exact codes such as "1257L" and as the fallback when embeddings are unavailable.
 
@@ -315,16 +323,21 @@ The thresholds stay at 0.69 and 0.75. The strictest similarity threshold keeping
 ### Answer benchmark (real Claude Haiku 5.5)
 Each question runs twice through the full pipeline. Automatic checks cover behaviour, required and forbidden text, nation and tax year. Reports are in `evals/answers/results/`.
 
-| Set | Before V2 | V2 | V2.1 |
-|---|---|---|---|
-| Frozen set of 30, used for tuning | 26/30 | 30/30 | **30/30** |
-| First held-out set of 17 | not run | 16/17 | **17/17** (no longer unseen: its miss was fixed on request) |
-| "Should I…" set of 12, used to build the recommendation check | 11/12 | 12/12 | **12/12** |
-| "Should I…" set of 8 in other wordings | not run | 8/8 | **8/8** |
-| Jurisdiction set of 20, used to build the V2.1 fixes | not run | not run | **20/20** |
-| **New held-out set of 20, run blind once** | not run | not run | **14/20** |
+| Set | Before V2 | V2 | V2.1 | V3 |
+|---|---|---|---|---|
+| Frozen set of 30, used for tuning | 26/30 | 30/30 | 30/30 | **30/30** |
+| "Should I…" set of 12, used to build the recommendation check | 11/12 | 12/12 | 12/12 | **12/12** |
+| "Should I…" set of 8 in other wordings | not run | 8/8 | 8/8 | **8/8** |
+| Jurisdiction set of 20, used to build the V2.1 fixes | not run | not run | 20/20 | **20/20** |
+| Over-refusal diagnostic of 32, used to build the V3 fixes | not run | not run | 22/32 | **30/32** |
+| holdout-v2 of 20 | not run | not run | 14/20 blind | **17/20** (no longer blind) |
+| **Fresh single-turn held-out set of 20, run blind once** | not run | not run | not run | **18/20** (19/20 on a later non-blind re-run) |
+| **Multi-turn held-out set of 22, run blind once** | not run | not run | not run | **19/22** conversations, 40/44 turns (41/44 on a later non-blind re-run) |
+| Multi-turn development set of 33, used for tuning | not run | not run | not run | **33/33**, 70/70 turns |
 
-**The blind 14/20 is the fairest measure.** All 6 misses are refusals of casually worded questions, such as "Scottish starter rate please". No answer was wrong, and all 7 conflict, unsupported, injection and advice cases behaved correctly. The set scored 14/20 again on the final code, which isn't a blind result. It hasn't been tuned on.
+**The two blind V3 runs are the fairest measures,** and they aren't independent: the same author wrote the questions and the code. V3's blind runs passed all 7 controls, and every adversarial, ambiguous, conflict, unsupported and uncovered-year conversation. The misses were 5 refusals and 1 partial answer, but see the false sentence below.
+
+The V2.1 blind run scored 14/20. All 6 misses are refusals of casually worded questions, such as "Scottish starter rate please". No answer was wrong, and all 7 conflict, unsupported, injection and advice cases behaved correctly. The set scored 14/20 again on the final code, which isn't a blind result. It hasn't been tuned on.
 
 V2 note: the 30/30 is flattering because fixes targeted those failures, and the first held-out score was the fairer measure at the time. Its miss: "What is the advanced rate of income tax?" for Scotland is refused, though the answer is in the corpus. Both sets are small, and the thresholds were chosen on the benchmark data.
 
@@ -349,6 +362,51 @@ The "Should I…" sets only look for recommendation wording, so they show the wo
 
 Automated versions of these checks are in `apps/api/tests/jurisdiction.test.ts` and `search.db.test.ts`.
 
+### V3: conversations
+**Design.** The browser keeps a conversation and sends up to 6 earlier `{question, nation}` turns with each request. The server stores nothing, so there are no sessions to leak and nothing to isolate. The API has no field for an earlier answer and rejects one.
+
+| Follow-up | How it is resolved |
+|---|---|
+| No sign of depending on the conversation | Answered exactly as if the history didn't exist |
+| Only a nation or tax year changes ("What about Scotland?", "And last tax year?") | Code, no AI call |
+| Comparison ("Compare the two.", "How does that compare with Wales?") | Code. Each side is retrieved for its own nation and year, must pass the gate alone, and must be cited in the answer |
+| Refers back in other ways ("What about the higher rate?") | Haiku rewrites it into one question, seeing earlier questions only. The result is treated as a typed question, and code decides the nation |
+| Can't tell ("What about the other one?") | Asks for the full question |
+
+| Rule | Reason |
+|---|---|
+| The answer model sees only the resolved question and fresh sources | An earlier answer can't become evidence, and a forged history can do no more than typing the same words |
+| A rewrite with a new figure or an instruction is rejected | The model can't add to what the person said |
+| Follow-ups and comparisons skip the cache, for reads and writes | A cached single-turn answer is never reused for a question that depends on context |
+| A nation named in the question that differs from the selection asks first | Same rule as V2.1 |
+| Changing the selector between turns counts as a choice | The new nation is used, and a notice says the nation changed |
+| A follow-up keeps the tax year being discussed | Even if the rewrite drops it, code restores it |
+| At most 3 earlier questions reach the rewrite, with no nations, and only for follow-ups that need it; it has an 8-second limit | Less data sent, and an answer can still arrive within the browser's 45-second limit |
+
+**Cost.** A turn that needs a rewrite makes two model calls, the second being small. Turns resolved by code make one. Conversations in the benchmarks averaged about 4,300 to 4,500 tokens per turn with a model call.
+
+**A wrong-year bug found while building this.** V2 answered "What are the Welsh rates of income tax in 2024 to 2025?" with 2025 to 2026 figures, because undated and open-ended sections passed the date filter. Asking about a tax year other than the current one now needs a section that states it covers that year. Otherwise the answer is `year_not_covered`. "Last tax year" is also recognised now: before, it was ignored and the question was searched against today's date.
+
+**Over-refusals.** The diagnostic set, kept apart from the held-out questions, found the same cause as the England bug: words that aren't evidence were being treated as evidence.
+
+| Wording | Fix | Diagnostic before → after |
+|---|---|---|
+| "please", "tell me", "I want to know" | Removed from search text | 1/5 → 5/5 |
+| "highest", "lowest" | Not counted as evidence | 0/2 → 2/2 |
+| Tax year words | The year filters and leaves the search text; "band" reads as GOV.UK's "rate" | 3/5 → 5/5 |
+| Figures in the question | Not changed: matching a figure alone could accept questions like "a £125,140 house", so this needs more care. Not tested | 3/4 → 3/4 |
+| Controls that must stay unanswered | | 15/16 → 15/16 |
+
+The thresholds did not change. The one control that fails, "What is the dividend rate in Scotland?", has failed since V2: it answers truthfully that dividends are taxed as in the rest of the UK, but gives no rate.
+
+**Rejected on measurement:** searching on only the last sentence of a question dropped Recall@5 to 95%, so the whole question is searched and only the evidence check uses the last sentence.
+
+**Found after the blind runs, then fixed.** These are in the re-run scores, not the blind ones.
+- A section for the named year could rank below six undated ones and be cut before the year filter, so the app wrongly said the year wasn't covered. It now filters first.
+- **A held-out answer passed every automatic check and contained a false sentence:** "The basic rate band is the same as the rest of the UK", for Wales. GOV.UK says that about dividends, not bands. It was found by reading the answers. A UK-wide claim must now match a source sentence about the same thing, clause by clause, and the prompt forbids it. This class of error is why [human review](docs/ANSWER_REVIEW_CHECKLIST.md) remains essential: similar errors in other wording can still pass.
+
+**Tests.** `npm run test:browser` drives the real app in headless Chrome, with no browser library, and passes 25 of 25 checks on desktop and mobile. Captured requests hold questions and nations only, browser storage stays empty, and New conversation sends an empty history.
+
 ### Failure testing on real servers (31 Oct)
 | Case | Result |
 |---|---|
@@ -365,13 +423,14 @@ Browser checks on 31 Oct (headless Chrome, desktop and mobile dark mode): the [d
 ### Engineering checks
 | Check | Result |
 |---|---|
-| Unit and HTTP tests | 298 pass (API 291, web 7) |
-| Database tests on an isolated branch | 77 pass, about 13 minutes |
+| Unit and HTTP tests | 427 pass (API 420, web 7) |
+| Database tests on an isolated branch | 85 pass, about 15 minutes |
+| Browser check on the real app | 25 of 25 |
 | Typecheck, lint, production build | Pass |
 | `npm audit --omit=dev` | 0 vulnerabilities |
 | Embedding library upgrade | Vectors match the old version (cosine 1.0000000) |
 | Freshness check | 25 guides checked, 0 changed, 0 failed |
-| Browser tests in headless Chrome | Desktop and mobile, both themes, clarifying prompt, sources panel, Key links, payday budget |
+| Earlier browser checks in headless Chrome | Desktop and mobile, both themes, clarifying prompt, sources panel, Key links, payday budget |
 | Colour contrast | WCAG AA by calculation in both themes |
 | Log audit | No question text or secrets in application logs |
 
@@ -412,12 +471,13 @@ No real traffic exists, so **a real-world hit rate is unknown**. In the benchmar
 | Wrong nation | Nation filter on every search |
 | Out-of-date rates | Dated sections are withheld outside their stated period |
 | Unlicensed content | The database view exposes approved content only, and a trigger refuses vectors for unapproved chunks |
-| Prompt injection | Sources are escaped and marked as data; passages containing instructions to an AI are withheld; the model has no tools; each question stands alone |
+| Prompt injection | Sources are escaped and marked as data; passages containing instructions to an AI are withheld; the model has no tools; earlier questions are data, and earlier answers never reach the model |
 | Personal advice | "Should I…" questions get general rules plus a regulated-advice notice. Code removes any sentence with recommendation wording, and for these questions any verdict or instruction, whatever the model wrote |
 | Abuse and cost | Per-IP rate limits, length limits, a 16 KB request limit, a per-answer token cap, 4 concurrent model calls and a daily token ceiling |
 | Common web attacks | Security headers, one allowed origin, HTTP timeouts, parameterised SQL, generic error messages |
 | Over-privileged database access | A read-only role is designed and tested, to be applied at deployment |
-| Privacy | No accounts or stored questions; question text is not logged. Questions that pass the relevance check are sent to Anthropic to write the answer |
+| Privacy | No accounts or stored questions; the server keeps nothing between requests, and neither question nor conversation text is logged. Questions that pass the relevance check are sent to Anthropic to write the answer, and up to 3 earlier questions are sent when a follow-up needs rewriting. The rewrite is told to leave out personal details, but it may not always |
+| History abuse | Up to 6 strict `{question, nation}` turns of up to 600 characters; extra fields rejected; treated as questions, never as facts |
 | Accidental production changes | Local tools point at a development branch; the production URL isn't in local settings |
 
 **Residual risks:** the exposed credentials are not rotated. Limits are per server process and reset on restart. Rate limits don't stop a distributed attack, which is why the Anthropic spend limit matters. The injection filter uses a pattern, so a cleverly worded instruction could pass it; human review of each guide remains the main defence. No independent security test has been done. No legal or regulatory review has been done, which a commercial launch would need.
@@ -429,15 +489,20 @@ No real traffic exists, so **a real-world hit rate is unknown**. In the benchmar
 These are real and should be stated honestly when presenting.
 
 1. **Checks are not proof.** They catch invented figures, sources and wording. A sentence using the source's words can still give a wrong meaning, so human review and the link to GOV.UK still matter.
-2. **Casually worded questions are often refused.** The blind test refused 6 of 20, including "Scottish starter rate please" and "What is the Class 4 rate in 2026/27?". This is safe, but it's the biggest quality gap. Comparing numbers in a question with tax bands ("income over £50,270") isn't supported either.
+2. **Some casual wording is still refused.** Examples are "whats the starter rate in scotland", and most questions built around a figure, such as "How much tax do you pay on earnings above £125,140 in England?". This is safe, but it's a real gap.
 3. **Advice detection is wording-based.** Verdicts, instructions and recommendation phrases are removed by code, but a recommendation in other words can still pass, and a sentence quoting GOV.UK can still steer a reader ("the quickest way is…"). A question that isn't recognised as advice gets no advice notice. Human review is the backstop, and legal advice is needed before a commercial launch.
-4. **Answers vary between runs.** The model doesn't support a fixed temperature, and 15 of 30 frozen questions gave identical text across two runs without the cache. Required facts passed in both runs on the frozen set, and cached repeats are identical.
+4. **Answers vary between runs.** The model doesn't support a fixed temperature, and 20 of 30 frozen questions gave identical text across two runs without the cache, and 9 of the 20 fresh held-out questions. Required facts passed in both runs on the frozen set, and cached repeats are identical.
 5. **Thresholds were tuned on small datasets** and must be rechecked when guides are added.
 6. **Coverage is narrow:** 5 guides, covering 20 of the 47 answerable retrieval questions.
 7. **Ranking ties** can move a result by one place between databases.
 8. **The database is in Ohio,** which adds latency for UK use.
 9. **Limits and the cache are in memory,** so they are per server instance and reset on restart.
 10. **MoneyHelper's link** couldn't be checked automatically because the site blocks automated requests.
+11. **Follow-ups are found by wording.** A follow-up with no sign of depending on the conversation is answered as a new question. "What is the basic rate?" after a Scottish question is not limited to Scotland, and a notice says so.
+12. **Some follow-ups fail safely.** "and the year before?" isn't understood, and "Compare that with the additional rate in England" isn't read as a comparison. Both are refused or asked about.
+13. **Earlier answers aren't available to follow-ups.** "The second one", meaning an item in the last answer, can't be resolved. This is the price of never treating an answer as evidence.
+14. **A comparison isn't remembered.** A follow-up after one applies to the last single question.
+15. **Comparisons use wording checks only.** Each figure must be in its cited passage, but code can't confirm a figure is attached to the right nation in the sentence.
 
 ---
 
@@ -464,9 +529,9 @@ These are real and should be stated honestly when presenting.
 
 ## 11. Roadmap
 
-**Next (V2.1): quality**
+**Next: quality**
 - Complete the human answer review and fix what it finds.
-- Grow the held-out set, and fix refused questions like the Scottish advanced rate.
+- Fix the remaining refusals, especially questions built around a figure.
 - Approve more guides, especially pensions, sick pay and student loans.
 
 **Then: launch**
@@ -474,7 +539,7 @@ These are real and should be stated honestly when presenting.
 - Alerts on errors, spending and abstention rate.
 
 **Later, once quality and reliability hold up**
-- Follow-up question suggestions, streaming answers and conversation memory.
+- Follow-up question suggestions and streaming answers.
 
 ---
 
@@ -509,8 +574,8 @@ These are real and should be stated honestly when presenting.
 2. **Idea:** an assistant that shows its evidence and knows when to stop.
 3. **Demo:** the questions below.
 4. **How it works:** retrieve, generate, verify.
-5. **Results:** 100% Recall@5, zero wrong-nation or wrong-year results, 14/20 on unseen questions with every miss a refusal, not a wrong answer.
-6. **Honesty:** what citation checks can't catch, and what's next.
+5. **Results:** 100% Recall@5, zero wrong-nation or wrong-year retrievals, 19/22 unseen conversations and 18/20 unseen questions on their blind runs.
+6. **Honesty:** what citation checks can't catch, including the false sentence found by reading the blind answers, and what's next.
 
 ### Demo script
 | Ask | What it shows |
@@ -523,9 +588,10 @@ These are real and should be stated honestly when presenting.
 ### Portfolio or CV summary
 - Built a full-stack RAG chatbot in TypeScript (React, Fastify, Postgres with pgvector) that answers UK tax questions only from licence-approved GOV.UK guidance.
 - Implemented weighted hybrid retrieval, reaching 100% Recall@5 with zero wrong-nation or wrong-year results on a labelled benchmark of approved guides.
-- Built an answer evaluation that improved results from 26/30 to 30/30, with 14/20 on blind held-out questions and no wrong answers, using code-based verification, a two-signal evidence gate and prompt-injection defences.
+- Built a multi-turn assistant with no server-side state: earlier answers never reach the model and every turn is retrieved and verified again, scoring 19/22 on a blind conversation benchmark including adversarial history.
+- Built an answer evaluation that improved results from 26/30 to 30/30, and 18/20 on a fresh blind set, using code-based verification, a two-signal evidence gate and prompt-injection defences.
 - Added a provably safe answer cache that cut repeat answers from about 2 s to 0.5 s, plus spend ceilings and schema-checked API responses.
-- Covered the system with 375 automated tests across unit, HTTP and real database layers.
+- Covered the system with 512 automated tests across unit, HTTP and real database layers, plus a dependency-free browser check.
 
 ### Questions people may ask
 - **Is it financial advice?** No. It gives general information and says so on every answer.
@@ -549,6 +615,8 @@ These are real and should be stated honestly when presenting.
 | Redesign | Studied Perplexity's public interface; rebuilt the UI as a reading-first experience with its own identity |
 | Clean-up | Removed Docker files, unused packages, old tools and old planning documents; created this clean repository |
 | V2 | Answer benchmark, better ranking and evidence gate, stricter checks, safe cache, spend limits, security headers, dependency upgrades, freshness check |
+| V2.1 | Nations and tax years named in a question, conflict prompts, demo readiness |
+| V3 | Conversations with no server state, fresh retrieval on every turn, multi-turn benchmarks, over-refusal fixes, the uncovered-year rule |
 
 The project was built with AI pair programming using Claude Code.
 

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
-import { Check, Copy, Info, RotateCcw } from "lucide-react";
-import { askQuestion, type ChatResponse, type ChatSource, type Nation } from "./api.ts";
+import { Check, Copy, Info, Plus, RotateCcw } from "lucide-react";
+import { askQuestion, type ChatResponse, type ChatSource, type Nation, type PastTurn } from "./api.ts";
 import { Composer } from "./Composer.tsx";
 import { formatIsoDate, groupCitations, sourceNumber } from "./format.ts";
 import { SourcesPanel } from "./SourcesPanel.tsx";
 import { chipClass, INDEPENDENCE_NOTE, NATION_LABELS, SHORT_INDEPENDENCE_NOTE } from "./ui.tsx";
 
 // Only questions the approved guides can answer. Update these when more guides are approved.
+// The most the API accepts. Older questions drop off, and the conversation lives only in this page.
+const MAX_HISTORY = 6;
+
 const SUGGESTIONS = ["What does tax code 1257L mean?", "What is an emergency tax code?", "What is the Scottish intermediate rate?", "How much National Insurance do I pay?"];
 
 type TurnBase = { id: number; question: string; nation: Nation | null; startedAt: number };
@@ -56,12 +59,22 @@ function copyText(response: ChatResponse): string {
   return [response.answer.map(sentence => sentence.text).join(" "), ...cited].join("\n");
 }
 
+const describeTurn = (turn: PastTurn) => `${turn.question}${turn.nation === null ? "" : ` (${NATION_LABELS[turn.nation]})`}`;
+
+/** Shows how a follow-up was read, so a wrong reading is easy to spot. */
+function Interpretation({ conversation }: { conversation: ChatResponse["conversation"] }) {
+  if (conversation.kind === "follow_up") return <p className="text-sm text-muted mt-2">Answering: {conversation.turns.map(describeTurn).join("")}</p>;
+  if (conversation.kind === "comparison") return <p className="text-sm text-muted mt-2">Comparing: {conversation.turns.map(describeTurn).join(" and ")}</p>;
+  return null;
+}
+
 function Answer({ turnId, response, seconds, onShowSources, onPick, onUseNation }: { turnId: number; response: ChatResponse; seconds: number; onShowSources: ShowSources; onPick: (question: string) => void; onUseNation: (nation: Nation) => void }) {
   const sourceById = new Map(response.sources.map(source => [source.id, source]));
   const grounded = response.mode === "grounded_answer";
 
   return <div className="rise">
     <p className="text-sm text-muted mt-5">Finished <span className="text-faint tabular-nums">{seconds}s</span> <span className="text-faint">· {response.request.jurisdiction !== null && `${NATION_LABELS[response.request.jurisdiction]} · `}as of {formatIsoDate(response.request.asOfDate)}</span></p>
+    <Interpretation conversation={response.conversation} />
 
     {grounded
       ? <p className="answer-text mt-3">
@@ -133,7 +146,7 @@ function SuggestionList({ onPick, align = "center" }: { onPick: (question: strin
   </ul>;
 }
 
-export function ChatPanel() {
+export function ChatPanel({ onNewConversation }: { onNewConversation: () => void }) {
   const [question, setQuestion] = useState("");
   const [nation, setNation] = useState<Nation | "">("");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -142,7 +155,9 @@ export function ChatPanel() {
   const sourcesTrigger = useRef<HTMLElement | null>(null);
   const busy = turns.some(turn => turn.status === "loading");
 
-  // Each question is answered on its own: no history is sent, so earlier turns cannot steer later ones.
+  // Earlier questions go with each request, never earlier answers: every turn is retrieved and checked from scratch.
+  const history = turns.flatMap(turn => turn.status === "done" && turn.response.conversation.turns.length === 1 ? turn.response.conversation.turns : []).slice(-MAX_HISTORY);
+
   async function ask(asked: string, chosenNation: Nation | null) {
     const startedAt = Date.now();
     const id = startedAt;
@@ -151,7 +166,7 @@ export function ChatPanel() {
     setQuestion("");
     setOpenSources(null);
     try {
-      const response = await askQuestion(asked, chosenNation);
+      const response = await askQuestion(asked, chosenNation, history);
       const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
       setTurns(previous => previous.map(turn => turn.id === id ? { ...base, status: "done", response, seconds } : turn));
     } catch (caught) {
@@ -206,7 +221,11 @@ export function ChatPanel() {
         </div>
       </div>
       <div className="mx-auto w-full max-w-[720px] px-4 sm:px-6 pb-3">
-        {composer("Ask another question", false)}
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <p className="text-xs text-faint">Not saved. Clears when you refresh.</p>
+          <button type="button" onClick={onNewConversation} disabled={busy} className="shrink-0 inline-flex items-center gap-1.5 h-8 px-2 rounded-lg text-sm text-muted hover:bg-ink/5 hover:text-ink disabled:opacity-50"><Plus size={15} aria-hidden="true" /> New conversation</button>
+        </div>
+        {composer("Ask a follow-up or a new question", false)}
         <p className="text-[11px] text-faint text-center mt-1.5">{SHORT_INDEPENDENCE_NOTE}</p>
       </div>
     </div>

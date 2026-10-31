@@ -40,13 +40,13 @@ function ThemeButton() {
   </button>;
 }
 
-function Navigation({ view, onSelect, onNewQuestion }: { view: View; onSelect: (view: View) => void; onNewQuestion: () => void }) {
+function Navigation({ view, onSelect, onNewConversation }: { view: View; onSelect: (view: View) => void; onNewConversation: () => void }) {
   const onAsk = view === "ask";
   return <>
     <nav aria-label="Main" className="mt-6 flex-1 space-y-1">
       {/* From another page this returns to the thread; only on Ask does it start again. */}
-      <button type="button" onClick={onAsk ? onNewQuestion : () => onSelect("ask")} aria-current={onAsk ? "page" : undefined} className={navClass(onAsk)}>
-        {onAsk ? <><Plus size={17} aria-hidden="true" /> New question</> : <><MessageSquareText size={17} aria-hidden="true" /> Ask</>}
+      <button type="button" onClick={onAsk ? onNewConversation : () => onSelect("ask")} aria-current={onAsk ? "page" : undefined} className={navClass(onAsk)}>
+        {onAsk ? <><Plus size={17} aria-hidden="true" /> New conversation</> : <><MessageSquareText size={17} aria-hidden="true" /> Ask</>}
       </button>
       {NAV.map(({ view: target, label, icon: Icon }) => <button type="button" key={target} onClick={() => onSelect(target)}
         aria-current={view === target ? "page" : undefined} className={navClass(view === target)}><Icon size={17} aria-hidden="true" /> {label}</button>)}
@@ -83,11 +83,11 @@ export default function App() {
     setView(target);
     setMenuOpen(false);
   };
-  const newQuestion = () => {
+  const newConversation = () => {
     setChatSession(session => session + 1);
     select("ask");
   };
-  const navigation = <Navigation view={view} onSelect={select} onNewQuestion={newQuestion} />;
+  const navigation = <Navigation view={view} onSelect={select} onNewConversation={newConversation} />;
   // Views stay mounted so a thread or a budget survives moving between them.
   const showWhen = (target: View) => (view === target ? "h-full" : "hidden");
 
@@ -105,7 +105,7 @@ export default function App() {
         <Wordmark />
       </header>
       <main className="flex-1 min-h-0">
-        <div className={showWhen("ask")}><ChatPanel key={chatSession} /></div>
+        <div className={showWhen("ask")}><ChatPanel key={chatSession} onNewConversation={newConversation} /></div>
         <div className={showWhen("search")}><GuidanceSearch /></div>
         <div className={showWhen("links")}><SourceSearch /></div>
         <div className={showWhen("budget")}><BudgetPanel /></div>

@@ -25,6 +25,7 @@ npm run dev              # API on :3001, web on :5173
 ```bash
 npm run typecheck && npm run lint && npm test && npm run build
 npm run test:db          # needs TEST_DATABASE_URL on a separate Neon branch
+npm run test:browser     # needs Chrome and `npm run dev` running; makes 10 chat requests
 ```
 
 ## Working on content
@@ -34,6 +35,7 @@ npm run licence:review -- --list
 npm run licence:review -- --path /guide --decision approved --reviewer "Your Name"
 npm run ingest && npm run embed && npm run eval:retrieval
 npm run eval:answers -- --label my-change    # answer quality, real model; small API cost
+npm run eval:conversations -- --label my-change    # multi-turn quality, real model
 ```
 
 Before a public release, a person must complete [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md).

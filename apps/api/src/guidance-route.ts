@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isValidIsoDate, londonDateFromInstant } from "./domain/dates.ts";
 import { NATIONS } from "./ingest/corpus.ts";
 import { guidanceResponse } from "./responses.ts";
-import { readJurisdiction, taxYearStart } from "./retrieval/jurisdiction.ts";
+import { pinTaxYear, readJurisdiction, taxYearStart } from "./retrieval/jurisdiction.ts";
 import type { SearchOutcome, SearchRequest, WarnLogger } from "./retrieval/search.ts";
 
 /** What the route needs from the retrieval layer; null when no database is configured. */
@@ -56,9 +56,11 @@ export function registerGuidanceSearch(app: FastifyInstance, search: GuidanceSea
       return reply.code(503).send({ error: "SEARCH_UNAVAILABLE", message: "Guidance search is not configured on this server.", requestId: request.id });
     }
 
-    const { query, jurisdiction: selected, limit } = parsed.data;
+    const { jurisdiction: selected, limit } = parsed.data;
+    const today = parsed.data.asOfDate ?? londonDateFromInstant(now());
+    const query = pinTaxYear(parsed.data.query, today);
     const { nation: jurisdiction } = readJurisdiction(query, selected);
-    const asOfDate = taxYearStart(query) ?? parsed.data.asOfDate ?? londonDateFromInstant(now());
+    const asOfDate = taxYearStart(query) ?? today;
     let outcome: SearchOutcome;
     try {
       outcome = await search({ query, nation: selected, asOfDate, limit }, request.log);

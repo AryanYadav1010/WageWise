@@ -104,6 +104,9 @@ export type ChatSource = {
   attribution: string;
 };
 
+/** Earlier questions only: the API has no field for earlier answers, and they are never sent back. */
+export type PastTurn = { question: string; nation: Nation | null };
+
 export type ChatResponse = {
   mode: "grounded_answer" | "abstained";
   isGroundedAnswer: boolean;
@@ -114,12 +117,14 @@ export type ChatResponse = {
   abstainReason: string | null;
   /** Nations the question names when they differ from the one selected. */
   clarifyNations: Nation[];
+  /** How the question was read, and what it resolved to. A single turn is remembered for the next question. */
+  conversation: { kind: "standalone" | "follow_up" | "comparison" | "unresolved"; turns: PastTurn[] };
   sources: ChatSource[];
   notices: string[];
   disclaimer: string;
 };
 
-export const askQuestion = (question: string, jurisdiction: Nation | null) => postJson<ChatResponse>("/api/chat", { question, jurisdiction });
+export const askQuestion = (question: string, jurisdiction: Nation | null, history: PastTurn[]) => postJson<ChatResponse>("/api/chat", { question, jurisdiction, history });
 
 export const searchSources = (question: string) => postJson<SearchResponse>("/api/source-search", { question });
 export const calculateBudget = (request: BudgetRequest) => postJson<BudgetResponse>("/api/budget", request);

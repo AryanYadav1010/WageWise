@@ -1,0 +1,359 @@
+{
+ "version": "overrefusal-diagnostic-v1",
+ "createdAt": "2026-10-31",
+ "description": "Separate set for diagnosing over-refusal, grouped by wording class, with unanswerable controls in the same styles. None of these is a holdout-v2 question. Used for tuning, so a pass here is in-sample.",
+ "cases": [
+  {
+   "id": "o-01",
+   "category": "filler",
+   "question": "Welsh additional rate please",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "45%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-02",
+   "category": "filler",
+   "question": "Give me the Scottish basic rate",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "20%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-03",
+   "category": "filler",
+   "question": "Can you tell me the advanced rate for Scotland?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "45%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-04",
+   "category": "filler",
+   "question": "I want to know the higher rate in Wales",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "40%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-05",
+   "category": "filler",
+   "question": "Tell me the personal allowance",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "£12,570"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-06",
+   "category": "synonym",
+   "question": "Highest income tax rate in Scotland",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "48%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-07",
+   "category": "synonym",
+   "question": "lowest Scottish tax band",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "19%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-08",
+   "category": "figure",
+   "question": "What tax do I pay on income above £43,663 in Scotland?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "42%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-09",
+   "category": "figure",
+   "question": "How much tax on earnings over £125,140 in Wales?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "45%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-10",
+   "category": "figure",
+   "question": "What rate applies to income between £12,571 and £50,270 in England?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "20%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-11",
+   "category": "figure",
+   "question": "Class 1 National Insurance on pay over £967 a week",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "2%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-12",
+   "category": "year",
+   "question": "Scottish basic rate band for the 2026 to 2027 tax year",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "£16,538"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-13",
+   "category": "year",
+   "question": "Class 2 rate in 2026/27",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "£3.65"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-14",
+   "category": "year",
+   "question": "Class 1 rate for 2026 to 2027",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "8%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-15",
+   "category": "year",
+   "question": "Starter band in Scotland for 2025/26",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "£15,397"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "o-16",
+   "category": "year",
+   "question": "higher rate band in Wales for 2026-27",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "£50,271"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-01",
+   "category": "control_filler",
+   "question": "Child Benefit rate please",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-02",
+   "category": "control_filler",
+   "question": "Give me the council tax rate for Wales",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-03",
+   "category": "control_filler",
+   "question": "Can you tell me the state pension amount?",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-04",
+   "category": "control_filler",
+   "question": "Tell me the minimum wage",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-05",
+   "category": "control_filler",
+   "question": "Give me the ISA allowance",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-06",
+   "category": "control_synonym",
+   "question": "Highest rate of capital gains tax in England",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-07",
+   "category": "control_figure",
+   "question": "What tax do I pay on a £125,140 house in Wales?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-08",
+   "category": "control_figure",
+   "question": "How much inheritance tax on £500,000 in England?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-09",
+   "category": "control_figure",
+   "question": "How much is VAT on a £12,570 car?",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-10",
+   "category": "control_year",
+   "question": "VAT rate for 2026 to 2027",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-11",
+   "category": "control_year",
+   "question": "Corporation tax rate in 2026/27",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-12",
+   "category": "control_year",
+   "question": "Bitcoin tax rate in Scotland for the 2026 to 2027 tax year",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-13",
+   "category": "control_year",
+   "question": "Student loan repayment threshold for 2026 to 2027",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-14",
+   "category": "control_nation",
+   "question": "Scottish land tax band please",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-15",
+   "category": "control_nation",
+   "question": "Advanced rate in Wales please",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "c-16",
+   "category": "control_nation",
+   "question": "What is the dividend rate in Scotland?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  }
+ ]
+}

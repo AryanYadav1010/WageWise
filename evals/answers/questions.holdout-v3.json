@@ -1,0 +1,231 @@
+{
+ "version": "holdout-v3",
+ "createdAt": "2026-10-31",
+ "description": "Blind single-turn set: casual wording and same-style controls. Written after the over-refusal fixes and before any run, by the same author, so it is unseen but not independent. Facts come from the approved GOV.UK text. Never tune on it.",
+ "cases": [
+  {
+   "id": "v3-01",
+   "category": "casual",
+   "question": "whats the starter rate in scotland",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "19%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-02",
+   "category": "casual",
+   "question": "scottish intermediate rate",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "21%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-03",
+   "category": "casual",
+   "question": "basic rate wales?",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "20%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-04",
+   "category": "casual",
+   "question": "could you give me the additional rate for northern ireland",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "45%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-05",
+   "category": "casual",
+   "question": "What do I pay in Class 4 if I'm self-employed?",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "6%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-06",
+   "category": "casual",
+   "question": "how much is class 2",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "\u00a33.65"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-07",
+   "category": "year",
+   "question": "national insurance rate for employees 2026/27",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "8%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-08",
+   "category": "casual",
+   "question": "show me the higher rate band in england",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "\u00a350,271"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-09",
+   "category": "casual",
+   "question": "What's the tax-free allowance?",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "\u00a312,570"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-10",
+   "category": "figure",
+   "question": "income over \u00a3125,140 scotland what rate",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "48%"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-11",
+   "category": "fact",
+   "question": "what does W1 mean on a tax code",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "emergency"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-12",
+   "category": "fact",
+   "question": "whats a K tax code",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-13",
+   "category": "year",
+   "question": "Scottish advanced band in 2025/26",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "answer",
+   "mustInclude": [
+    "\u00a375,001"
+   ],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-14",
+   "category": "control",
+   "question": "whats the pension annual allowance please",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-15",
+   "category": "control",
+   "question": "give me the stamp duty rate",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-16",
+   "category": "control",
+   "question": "Tell me the capital gains allowance for 2026 to 2027",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-17",
+   "category": "control",
+   "question": "council tax band a scotland",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-18",
+   "category": "control",
+   "question": "How much is Universal Credit?",
+   "jurisdiction": "wales",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-19",
+   "category": "control",
+   "question": "whats the vat threshold",
+   "jurisdiction": "england",
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  },
+  {
+   "id": "v3-20",
+   "category": "control",
+   "question": "Advanced rate in England please",
+   "jurisdiction": null,
+   "asOfDate": "2026-10-30",
+   "expect": "no_answer",
+   "mustInclude": [],
+   "mustNotInclude": []
+  }
+ ]
+}
