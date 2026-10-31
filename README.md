@@ -4,7 +4,7 @@ A source-grounded chatbot for UK money questions. It answers only from licence-a
 
 **Independent portfolio project, not affiliated with or endorsed by GOV.UK, the UK Government, MoneyHelper or the FCA. General information only, not financial advice.**
 
-The full explanation (product, architecture, sources, results, limitations) is in **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)**.
+The full explanation (product, architecture, sources, results, limitations) is in **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)**. A 60–90 second walkthrough is in [docs/DEMO.md](docs/DEMO.md).
 
 ## Run it
 

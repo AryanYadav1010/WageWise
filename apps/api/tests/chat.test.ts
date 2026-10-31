@@ -20,7 +20,7 @@ function result(overrides: Partial<SearchResult> = {}): SearchResult {
 }
 
 const outcome = (results: SearchResult[], vector: SearchOutcome["vector"] = "ok", relevance: SearchOutcome["relevance"] = vector === "ok" ? "ok" : "not_assessed"): SearchOutcome =>
-  ({ results, lexical: "ok", vector, bestSimilarity: vector === "ok" ? 0.8 : null, relevance, termCount: 4, allTermsMatch: false });
+  ({ results, lexical: "ok", vector, bestSimilarity: vector === "ok" ? 0.8 : null, relevance, termCount: 4, allTermsMatch: false, ownGuideMatch: false });
 
 /** A model that records prompts and returns a scripted draft (or throws). */
 function fakeModel(reply: AnswerDraft | Error): AnswerModel & { prompts: AnswerPrompt[] } {
@@ -150,6 +150,8 @@ describe("citation verification", () => {
     const passages = new Map([["S1", "Starter rate £12,571 to £16,537 19%. You pay Scottish Income Tax if you live in Scotland."]]);
     expect(checkSentence({ text: "The source states this applies in England.", sourceIds: ["S1"] }, passages)).toEqual({ ok: false, reason: "about_the_sources" });
     expect(checkSentence({ text: "The sources do not explain the starter rate.", sourceIds: ["S1"] }, passages)).toEqual({ ok: false, reason: "about_the_sources" });
+    expect(checkSentence({ text: "Scottish rates differ, and the sources set out the general options.", sourceIds: ["S1"] }, passages)).toEqual({ ok: false, reason: "about_the_sources" });
+    expect(checkSentence({ text: "The table shows the Scottish starter rate.", sourceIds: ["S1"] }, passages)).toEqual({ ok: false, reason: "about_the_sources" });
     expect(checkSentence({ text: "Employers must always refund overpaid contributions immediately.", sourceIds: ["S1"] }, passages)).toEqual({ ok: false, reason: "unsupported_wording" });
     expect(checkSentence({ text: "You pay Scottish Income Tax if you live in Scotland.", sourceIds: ["S1"] }, passages)).toEqual({ ok: true });
   });
@@ -199,6 +201,35 @@ describe("prompt construction and injection defence", () => {
   });
 });
 
+describe("nation named in the question", () => {
+  const asked = (question: string, nation: ChatRequest["nation"], search = outcome([result()])) => {
+    const model = fakeModel(answer([{ text: "The starter rate is 19%.", sourceIds: ["S1"] }]));
+    const searches: { query: string; nation: unknown }[] = [];
+    const reply = answerQuestion({ ...dependencies(model, search), search: async sent => { searches.push(sent); return search; } }, { ...request, question, nation });
+    return { reply, model, searches };
+  };
+
+  it("asks which nation is meant, with no search and no model call, when the selection differs", async () => {
+    const { reply, model, searches } = asked("What is the higher rate in Scotland?", "england");
+    expect(await reply).toMatchObject({ mode: "abstained", abstainReason: "nation_conflict", sources: [], answer: [] });
+    expect(searches).toEqual([]);
+    expect(model.prompts).toEqual([]);
+  });
+
+  it("uses a nation named in the question when none is selected, and tells the model", async () => {
+    const { reply, model, searches } = asked("What is the higher rate in Scotland?", null);
+    expect((await reply).mode).toBe("grounded_answer");
+    expect(searches[0]?.nation).toBe("scotland");
+    expect(model.prompts[0]?.user).toContain("Where the person lives or works: scotland");
+  });
+
+  it("answers on own-guide evidence, even below the similarity needed otherwise", async () => {
+    const lowButOwnGuide = { ...outcome([result()]), bestSimilarity: 0.56, termCount: 2, allTermsMatch: true, ownGuideMatch: true };
+    expect((await asked("What is the advanced rate?", "scotland", lowButOwnGuide).reply).mode).toBe("grounded_answer");
+    expect((await asked("What is the advanced rate?", "scotland", { ...lowButOwnGuide, ownGuideMatch: false }).reply).abstainReason).toBe("no_evidence");
+  });
+});
+
 describe("personal advice", () => {
   it.each(["Should I opt out of my workplace pension?", "Which ISA should I pick?", "What would you recommend for me?"])("detects %j", question => {
     expect(asksForPersonalAdvice(question)).toBe(true);
@@ -238,6 +269,22 @@ describe("personal advice", () => {
   it("keeps a factual yes and a how-to step when no recommendation was asked for", () => {
     expect(check("Yes, you can ask HMRC to check your tax code.", false)).toEqual({ ok: true });
     expect(check("Check your tax code online.", false)).toEqual({ ok: true });
+  });
+
+  it("searches for the rule, not the advice wording", async () => {
+    const searches: string[] = [];
+    const model = fakeModel(answer([{ text: "The starter rate is 19%.", sourceIds: ["S1"] }]));
+    await answerQuestion({ ...dependencies(model, outcome([result()])), search: async sent => { searches.push(sent.query); return outcome([result()]); } }, { ...request, question: "Should I stay on the BR tax code?" });
+    expect(searches).toEqual(["stay on the BR tax code?"]);
+  });
+
+  it("lists the closest sources, without calling the model, when advice is asked and the evidence is too weak to answer", async () => {
+    const model = fakeModel(answer([]));
+    const weak = { ...outcome([result()]), bestSimilarity: 0.7 };
+    const reply = await answerQuestion(dependencies(model, weak), { ...request, question: "Should I stay on the BR tax code?" });
+    expect(reply).toMatchObject({ mode: "abstained", abstainReason: "personal_advice", personalAdviceRequested: true, answer: [] });
+    expect(reply.sources).toHaveLength(1);
+    expect(model.prompts).toEqual([]);
   });
 
   it("verifies the whole answer: only the general rule reaches the reader, and a bare verdict abstains", async () => {

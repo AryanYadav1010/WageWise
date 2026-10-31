@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { ChatAnswer } from "../chat/answer.ts";
 import { loadConfig } from "../config.ts";
 import { NATIONS } from "../ingest/corpus.ts";
+import { readJurisdiction, taxYearStart } from "../retrieval/jurisdiction.ts";
 import { createChat, createGuidanceSearch } from "../services.ts";
 import { runCli, startCli } from "./shared.ts";
 
@@ -29,11 +30,12 @@ function failures(item: Case, reply: ChatAnswer): string[] {
   if (item.expect === "no_answer" && reply.mode === "grounded_answer") problems.push("answered");
   for (const fact of item.mustInclude) if (!text.toLowerCase().includes(fact.toLowerCase())) problems.push(`missing "${fact}"`);
   for (const fact of item.mustNotInclude) if (text.toLowerCase().includes(fact.toLowerCase())) problems.push(`contains "${fact}"`);
-  const nation = item.jurisdiction;
+  const { nation } = readJurisdiction(item.question, item.jurisdiction);
   if (nation !== null && reply.sources.some(source => source.cited && !source.nations.includes(nation))) problems.push("cited the wrong nation");
   for (const source of reply.sources.filter(cited => cited.cited && cited.applicability.status === "stated")) {
     const { appliesFrom, appliesTo } = source.applicability as { appliesFrom: string | null; appliesTo: string | null };
-    if ((appliesFrom !== null && appliesFrom > item.asOfDate) || (appliesTo !== null && appliesTo < item.asOfDate)) problems.push("cited the wrong tax year");
+    const date = taxYearStart(item.question) ?? item.asOfDate;
+    if ((appliesFrom !== null && appliesFrom > date) || (appliesTo !== null && appliesTo < date)) problems.push("cited the wrong tax year");
   }
   return problems;
 }

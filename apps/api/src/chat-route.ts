@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { AbstainReason, ChatAnswer, ChatRequest } from "./chat/answer.ts";
+import { figuresIn, type AbstainReason, type ChatAnswer, type ChatRequest } from "./chat/answer.ts";
 import { isValidIsoDate, londonDateFromInstant } from "./domain/dates.ts";
 import { NATIONS } from "./ingest/corpus.ts";
 import { chatResponse } from "./responses.ts";
+import { readJurisdiction, taxYearStart } from "./retrieval/jurisdiction.ts";
 import type { WarnLogger } from "./retrieval/search.ts";
 
 /** What the route needs; null when no database or no LLM key is configured. */
@@ -17,7 +18,9 @@ const chatRequestSchema = z.object({
 }).strict();
 
 const ABSTAIN_MESSAGES: Record<AbstainReason, string> = {
+  personal_advice: "WageWise can't say what you should do, and the approved guidance doesn't answer this directly.",
   too_vague: "That's quite broad. Try a full question, such as what you want to know about it and where in the UK you live.",
+  nation_conflict: "Your question names a different part of the UK from the one selected. Tax rules can differ, so please choose which one you mean.",
   no_evidence: "I couldn't find approved official guidance that covers this, so I won't guess. Try rephrasing, or check GOV.UK directly.",
   relevance_unavailable: "I can't check how relevant the sources are right now, so I'm only listing them. Please read them on GOV.UK.",
   model_abstained: "The sources I found don't answer this clearly enough to summarise. They're listed below so you can check them yourself.",
@@ -34,8 +37,9 @@ function noticesFor(answer: ChatAnswer, jurisdiction: string | null): string[] {
   if (jurisdiction === null && answer.sources.length > 0) {
     notices.push("You didn't say where you live or work. Tax, employment and benefit rules can differ in Scotland, Wales and Northern Ireland.");
   }
-  if (answer.sources.some(source => source.cited && source.applicability.status === "not_stated")) {
-    notices.push("Some cited sections don't state which dates they apply to. Check current figures on GOV.UK.");
+  const undated = new Set(answer.sources.filter(source => source.applicability.status === "not_stated").map(source => source.id));
+  if (answer.answer.some(sentence => figuresIn(sentence.text).length > 0 && sentence.sourceIds.some(id => undated.has(id)))) {
+    notices.push("A figure in this answer comes from a page that doesn't say which tax year it applies to. Check it's current on GOV.UK.");
   }
   return notices;
 }
@@ -55,11 +59,12 @@ export function registerChat(app: FastifyInstance, chat: ChatService | null, now
       return reply.code(503).send({ error: "CHAT_UNAVAILABLE", message: "Answers are not configured on this server.", requestId: request.id });
     }
 
-    const { question, jurisdiction } = parsed.data;
-    const asOfDate = parsed.data.asOfDate ?? londonDateFromInstant(now());
+    const { question, jurisdiction: selected } = parsed.data;
+    const { nation: jurisdiction, named } = readJurisdiction(question, selected);
+    const asOfDate = taxYearStart(question) ?? parsed.data.asOfDate ?? londonDateFromInstant(now());
     let answer: ChatAnswer;
     try {
-      answer = await chat({ question, nation: jurisdiction, asOfDate }, request.log);
+      answer = await chat({ question, nation: selected, asOfDate }, request.log);
     } catch (error) {
       request.log.error({ err: error instanceof Error ? error.message : String(error) }, "chat failed");
       return reply.code(503).send({ error: "CHAT_UNAVAILABLE", message: "Answers are temporarily unavailable. Please try again.", requestId: request.id });
@@ -80,6 +85,7 @@ export function registerChat(app: FastifyInstance, chat: ChatService | null, now
       answer: answer.answer,
       message: answer.abstainReason === null ? null : ABSTAIN_MESSAGES[answer.abstainReason],
       abstainReason: answer.abstainReason,
+      clarifyNations: answer.abstainReason === "nation_conflict" ? named : [],
       sources: answer.sources,
       notices: noticesFor(answer, jurisdiction),
       model: answer.modelId,

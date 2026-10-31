@@ -1,6 +1,7 @@
 import type { Pool } from "../db/pool.ts";
 import { embedWithRetry, toVectorLiteral, type EmbeddingProvider, type RetryOptions } from "../embeddings/provider.ts";
-import type { NATIONS } from "../ingest/corpus.ts";
+import { NATIONS } from "../ingest/corpus.ts";
+import { readJurisdiction, taxYearStart } from "./jurisdiction.ts";
 
 // Hybrid retrieval over the `retrievable_chunks` view only: approved licence, live page,
 // active version. Nothing else in the database is reachable from here.
@@ -53,6 +54,8 @@ export type SearchOutcome = {
   termCount: number;
   /** One approved passage contains every meaningful word: a strong sign the corpus covers the question. */
   allTermsMatch: boolean;
+  /** A passage for the reader's part of the UK, not the whole UK, has every meaningful word: guidance written for them covers the question. */
+  ownGuideMatch: boolean;
   lexical: "ok" | "failed" | "skipped";
   vector: "ok" | "failed" | "skipped" | "not_configured";
 };
@@ -123,16 +126,32 @@ export async function vectorSearch(pool: Pool, queryVector: readonly number[], m
   return result.rows.map((row, index) => ({ chunkId: row.chunk_id, rank: index + 1, similarity: Number(row.similarity) }));
 }
 
+// Common in any passage, so finding them proves nothing: "How much will I get?" isn't a question about the rates table.
+const GENERIC_TERMS = new Set(["much", "many", "get", "got"]);
+
 /** How well the corpus covers the query's words. Uses queryTerms because Postgres rejects raw text with NUL bytes. */
-async function termEvidence(pool: Pool, request: SearchRequest): Promise<{ termCount: number; allTermsMatch: boolean }> {
+async function termEvidence(pool: Pool, request: SearchRequest): Promise<{ termCount: number; allTermsMatch: boolean; ownGuideMatch: boolean }> {
   const terms = queryTerms(request.query);
-  if (terms.length === 0) return { termCount: 0, allTermsMatch: false };
-  const result = await pool.query<{ nodes: number; covered: boolean }>(`
+  if (terms.length === 0) return { termCount: 0, allTermsMatch: false, ownGuideMatch: false };
+  const result = await pool.query<{ nodes: number; covered: boolean; own_guide: boolean }>(`
     SELECT numnode(q) AS nodes,
-      numnode(q) > 0 AND EXISTS (SELECT 1 FROM retrievable_chunks rc WHERE rc.search_vector @@ q AND ${FILTERS}) AS covered
-    FROM plainto_tsquery('english', $1) AS q`, [terms.join(" "), request.nation, request.asOfDate]);
+      numnode(q) > 0 AND EXISTS (SELECT 1 FROM retrievable_chunks rc WHERE rc.search_vector @@ q AND ${FILTERS}) AS covered,
+      numnode(specific) >= 3 AND $2::text IS NOT NULL AND EXISTS (
+        SELECT 1 FROM retrievable_chunks rc WHERE rc.search_vector @@ specific AND ${FILTERS} AND cardinality(rc.nations) < ${NATIONS.length}
+      ) AS own_guide
+    FROM plainto_tsquery('english', $1) AS q, plainto_tsquery('english', $4) AS specific`,
+  [terms.join(" "), request.nation, request.asOfDate, terms.filter(term => !GENERIC_TERMS.has(term)).join(" ")]);
   const row = result.rows[0];
-  return { termCount: Math.ceil((row?.nodes ?? 0) / 2), allTermsMatch: row?.covered ?? false };
+  return { termCount: Math.ceil((row?.nodes ?? 0) / 2), allTermsMatch: row?.covered ?? false, ownGuideMatch: row?.own_guide ?? false };
+}
+
+/**
+ * Words in a table row barely move a whole chunk's meaning, so "What is the advanced rate?" scores low
+ * against the Scottish rates table. Finding every word in a passage limited to the reader's part of the
+ * UK is stronger evidence than similarity, and the nation counts as one more match, so two words are enough.
+ */
+export function hasOwnGuideEvidence({ ownGuideMatch, termCount }: { ownGuideMatch: boolean; termCount: number }): boolean {
+  return ownGuideMatch && termCount >= 2;
 }
 
 export type FusedChunk = { chunkId: string; fusedScore: number; lexicalRank: number | null; vectorRank: number | null; vectorSimilarity: number | null };
@@ -265,15 +284,17 @@ async function semanticSide(dependencies: SearchDependencies, request: SearchReq
  */
 export async function searchGuidance(dependencies: SearchDependencies, request: SearchRequest, mode: RetrievalMode = "hybrid"): Promise<SearchOutcome> {
   const { pool } = dependencies;
+  const { nation, text } = readJurisdiction(request.query, request.nation);
+  const scoped = { ...request, nation, query: text, asOfDate: taxYearStart(request.query) ?? request.asOfDate };
   // Both sides run concurrently: against a remote database every sequential round trip adds latency.
-  const [lexicalResult, vectorResult, evidence] = await Promise.all([lexicalSide(pool, request, mode), semanticSide(dependencies, request, mode), termEvidence(pool, request)]);
+  const [lexicalResult, vectorResult, evidence] = await Promise.all([lexicalSide(pool, scoped, mode), semanticSide(dependencies, scoped, mode), termEvidence(pool, scoped)]);
   const { chunks: lexical, status: lexicalStatus } = lexicalResult;
   const { chunks: vector, status: vectorStatus } = vectorResult;
 
   const bestSimilarity = vectorStatus === "ok" ? (vector[0]?.similarity ?? null) : null;
   const minSimilarity = dependencies.minSimilarity ?? null;
   const base = { lexical: lexicalStatus, vector: vectorStatus, bestSimilarity, ...evidence };
-  if (minSimilarity !== null && bestSimilarity !== null && bestSimilarity < minSimilarity) {
+  if (minSimilarity !== null && bestSimilarity !== null && bestSimilarity < minSimilarity && !hasOwnGuideEvidence(evidence)) {
     // Nothing in the approved corpus is close enough: say so rather than show weak matches.
     return { ...base, results: [], relevance: "below_threshold" };
   }

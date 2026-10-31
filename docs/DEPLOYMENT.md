@@ -7,7 +7,7 @@
 
 ## Blocker: rotate the exposed credentials first
 
-**Checked 30 Oct 2026 at 23:03: not rotated.** The values in `.env` are the ones exposed during development, the Neon password is unchanged on the server, and the old Anthropic key still works. Nothing should be deployed until this is done. Only the owner can do it.
+**Last checked 30 Oct 2026 at 23:35: partly rotated.** The Anthropic key in `.env` is new and works; confirm the old key is deleted in the console. The Neon password on `production`, `development` and `test` is still the exposed one, so resetting it blocks deployment. A reset changes only the password part of each URL. Nothing should be deployed until this is done. Only the owner can do it.
 
 1. **Neon:** Neon Console → your project → Branches → open `production` → Roles & Databases → `neondb_owner` → Reset password. Repeat on `development` and `test`.
 2. **Update `.env` yourself**, without pasting values anywhere else: set `DATABASE_URL` from `neon connection-string development --pooled`, `DATABASE_URL_UNPOOLED` from `neon connection-string development`, and `TEST_DATABASE_URL` from `neon connection-string test`.
@@ -101,7 +101,7 @@ Never on Render: `DATABASE_URL_UNPOOLED`, `TEST_DATABASE_URL`. The API needs nei
 | Database access | API: production pooled URL only. CLIs: development. Tests: test branch. | Use the read-only role below. Optionally restrict Neon access to Render's outbound IPs (paid feature). Keep the production URL out of local files. |
 | Backups | Neon keeps restore history for a window that depends on the plan. All content can be rebuilt from GOV.UK; licence decisions are in git. | Confirm the window on your plan, and do one test restore to a new branch. |
 | CI | `.github/workflows/ci.yml`: audit, typecheck, lint, unit tests and builds; database tests when the `TEST_DATABASE_URL` secret exists. | Pushed to a private repository on 30 Oct, but no workflow can start: GitHub reports `startup_failure`, including for the freshness workflow, and another private repository on the account shows the same. Check Actions billing and limits in the account settings, then confirm a green run. The CI steps pass on a clean clone run locally; the database job and the weekly freshness check have never run on GitHub. |
-| Credentials | **Not rotated.** See the blocker at the top. | Rotate before any deployment. |
+| Credentials | **Anthropic key replaced; Neon password not rotated.** See the blocker at the top. | Reset the Neon password before any deployment. |
 | Static assets | Vite gives built files hashed names, which Vercel caches long-term; the API sends `no-store`, so answers aren't kept in browsers. | Add a CSP on Vercel with `connect-src` set to the Render URL. |
 
 ## Steps for a public preview (in order; stop at any failed gate)

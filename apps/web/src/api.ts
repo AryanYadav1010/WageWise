@@ -112,6 +112,8 @@ export type ChatResponse = {
   answer: { text: string; sourceIds: string[] }[];
   message: string | null;
   abstainReason: string | null;
+  /** Nations the question names when they differ from the one selected. */
+  clarifyNations: Nation[];
   sources: ChatSource[];
   notices: string[];
   disclaimer: string;

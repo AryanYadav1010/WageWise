@@ -56,12 +56,12 @@ function copyText(response: ChatResponse): string {
   return [response.answer.map(sentence => sentence.text).join(" "), ...cited].join("\n");
 }
 
-function Answer({ turnId, response, seconds, onShowSources, onPick }: { turnId: number; response: ChatResponse; seconds: number; onShowSources: ShowSources; onPick: (question: string) => void }) {
+function Answer({ turnId, response, seconds, onShowSources, onPick, onUseNation }: { turnId: number; response: ChatResponse; seconds: number; onShowSources: ShowSources; onPick: (question: string) => void; onUseNation: (nation: Nation) => void }) {
   const sourceById = new Map(response.sources.map(source => [source.id, source]));
   const grounded = response.mode === "grounded_answer";
 
   return <div className="rise">
-    <p className="text-sm text-muted mt-5">Finished <span className="text-faint tabular-nums">{seconds}s</span> <span className="text-faint">· as of {formatIsoDate(response.request.asOfDate)}</span></p>
+    <p className="text-sm text-muted mt-5">Finished <span className="text-faint tabular-nums">{seconds}s</span> <span className="text-faint">· {response.request.jurisdiction !== null && `${NATION_LABELS[response.request.jurisdiction]} · `}as of {formatIsoDate(response.request.asOfDate)}</span></p>
 
     {grounded
       ? <p className="answer-text mt-3">
@@ -79,6 +79,9 @@ function Answer({ turnId, response, seconds, onShowSources, onPick }: { turnId: 
         </p>
       : <p className="answer-text mt-3 text-muted">{response.message}</p>}
     {response.abstainReason === "too_vague" && <SuggestionList onPick={onPick} align="left" />}
+    {response.clarifyNations.length > 0 && <ul aria-label="Choose a nation" className="flex flex-wrap gap-2 mt-5">
+      {response.clarifyNations.map(nation => <li key={nation}><button type="button" onClick={() => onUseNation(nation)} className={chipClass}>Use {NATION_LABELS[nation]}</button></li>)}
+    </ul>}
 
     {response.notices.length > 0 && <ul className="mt-4 space-y-1.5">
       {response.notices.map(notice => <li key={notice} className="flex gap-2 text-[13px] leading-snug text-muted"><Info size={14} className="shrink-0 mt-0.5 text-faint" aria-hidden="true" />{notice}</li>)}
@@ -96,7 +99,7 @@ function Answer({ turnId, response, seconds, onShowSources, onPick }: { turnId: 
   </div>;
 }
 
-function TurnView({ turn, onShowSources, onRetry, onPick }: { turn: Turn; onShowSources: ShowSources; onRetry: (turn: Turn) => void; onPick: (question: string) => void }) {
+function TurnView({ turn, onShowSources, onRetry, onPick, onUseNation }: { turn: Turn; onShowSources: ShowSources; onRetry: (turn: Turn) => void; onPick: (question: string) => void; onUseNation: (question: string, nation: Nation) => void }) {
   return <section aria-label="Question and answer" className="scroll-mt-6" data-turn={turn.id}>
     <p className="ml-auto w-fit max-w-[85%] rounded-2xl bg-ink/[.06] px-4 py-2.5 leading-snug">
       {turn.question}{turn.nation !== null && <span className="text-sm text-faint"> · {NATION_LABELS[turn.nation]}</span>}
@@ -106,7 +109,7 @@ function TurnView({ turn, onShowSources, onRetry, onPick }: { turn: Turn; onShow
       <p role="alert" className="text-danger">{turn.error}</p>
       <button type="button" onClick={() => onRetry(turn)} className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"><RotateCcw size={14} aria-hidden="true" /> Try again</button>
     </div>}
-    {turn.status === "done" && <Answer turnId={turn.id} response={turn.response} seconds={turn.seconds} onShowSources={onShowSources} onPick={onPick} />}
+    {turn.status === "done" && <Answer turnId={turn.id} response={turn.response} seconds={turn.seconds} onShowSources={onShowSources} onPick={onPick} onUseNation={nation => onUseNation(turn.question, nation)} />}
   </section>;
 }
 
@@ -160,6 +163,10 @@ export function ChatPanel() {
   const chosenNation = nation === "" ? null : nation;
   const submit = () => void ask(question.trim(), chosenNation);
   const pick = (picked: string) => void ask(picked, chosenNation);
+  const useNation = (asked: string, picked: Nation) => {
+    setNation(picked);
+    void ask(asked, picked);
+  };
   const showSources: ShowSources = (turnId, highlightId, trigger) => {
     sourcesTrigger.current = trigger;
     setOpenSources({ turnId, highlightId });
@@ -195,7 +202,7 @@ export function ChatPanel() {
     <div className="flex-1 min-w-0 flex flex-col">
       <div ref={thread} className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto max-w-[720px] px-4 sm:px-6 pt-6 pb-10 space-y-10" aria-live="polite">
-          {turns.map(turn => <TurnView key={turn.id} turn={turn} onShowSources={showSources} onRetry={failed => void ask(failed.question, failed.nation)} onPick={pick} />)}
+          {turns.map(turn => <TurnView key={turn.id} turn={turn} onShowSources={showSources} onRetry={failed => void ask(failed.question, failed.nation)} onPick={pick} onUseNation={useNation} />)}
         </div>
       </div>
       <div className="mx-auto w-full max-w-[720px] px-4 sm:px-6 pb-3">

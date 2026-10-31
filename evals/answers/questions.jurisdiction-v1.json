@@ -1,0 +1,247 @@
+{
+  "version": "jurisdiction-v1",
+  "createdAt": "2026-10-31",
+  "description": "Named versus selected nation, conflicts, wrong-nation questions and named tax years. Used while fixing these bugs, so a pass here is in-sample. Facts were checked against the approved GOV.UK text.",
+  "cases": [
+    {
+      "id": "j-01",
+      "category": "explicit",
+      "question": "What is the higher rate of Income Tax in England?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "40%",
+        "£125,140"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-02",
+      "category": "explicit",
+      "question": "What is the higher rate of Income Tax in England?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "40%",
+        "£125,140"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-03",
+      "category": "implicit",
+      "question": "What is the higher rate of income tax?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "40%",
+        "£125,140"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-04",
+      "category": "explicit",
+      "question": "What is the basic rate of Income Tax in Northern Ireland?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "20%",
+        "£50,270"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-05",
+      "category": "implicit",
+      "question": "What is the basic rate of income tax?",
+      "jurisdiction": "northern-ireland",
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "20%",
+        "£50,270"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-06",
+      "category": "explicit",
+      "question": "What is the basic rate of Income Tax in Wales?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "20%"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-07",
+      "category": "implicit",
+      "question": "What is the advanced rate of income tax?",
+      "jurisdiction": "scotland",
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "45%",
+        "£75,001"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-08",
+      "category": "explicit",
+      "question": "What is the Scottish advanced rate?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "45%",
+        "£75,001"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-09",
+      "category": "explicit",
+      "question": "What is the advanced rate of income tax in Scotland?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "45%",
+        "£75,001"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-10",
+      "category": "explicit",
+      "question": "What is the Scottish top rate?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "48%"
+      ],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-11",
+      "category": "conflict",
+      "question": "What is the higher rate in Scotland?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "no_answer",
+      "mustInclude": [],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-12",
+      "category": "conflict",
+      "question": "What is the basic rate in England?",
+      "jurisdiction": "scotland",
+      "asOfDate": "2026-10-30",
+      "expect": "no_answer",
+      "mustInclude": [],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-13",
+      "category": "conflict",
+      "question": "What is the Welsh rate of Income Tax?",
+      "jurisdiction": "northern-ireland",
+      "asOfDate": "2026-10-30",
+      "expect": "no_answer",
+      "mustInclude": [],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-14",
+      "category": "wrong_nation",
+      "question": "What is the advanced rate of income tax?",
+      "jurisdiction": "wales",
+      "asOfDate": "2026-10-30",
+      "expect": "no_answer",
+      "mustInclude": [],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-15",
+      "category": "wrong_nation",
+      "question": "What is the advanced rate of income tax?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "no_answer",
+      "mustInclude": [],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-16",
+      "category": "tax_year",
+      "question": "What were the Scottish income tax rates in 2025 to 2026?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "£15,397"
+      ],
+      "mustNotInclude": [
+        "£16,537"
+      ]
+    },
+    {
+      "id": "j-17",
+      "category": "tax_year",
+      "question": "What was the Scottish basic rate in 2025/26?",
+      "jurisdiction": "scotland",
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "£27,491"
+      ],
+      "mustNotInclude": [
+        "£29,526"
+      ]
+    },
+    {
+      "id": "j-18",
+      "category": "tax_year",
+      "question": "What is the Scottish basic rate for 2026 to 2027?",
+      "jurisdiction": null,
+      "asOfDate": "2026-10-30",
+      "expect": "answer",
+      "mustInclude": [
+        "£29,526"
+      ],
+      "mustNotInclude": [
+        "£27,491"
+      ]
+    },
+    {
+      "id": "j-19",
+      "category": "tax_year",
+      "question": "What was the Scottish higher rate in 2022 to 2023?",
+      "jurisdiction": "scotland",
+      "asOfDate": "2026-10-30",
+      "expect": "no_answer",
+      "mustInclude": [],
+      "mustNotInclude": []
+    },
+    {
+      "id": "j-20",
+      "category": "tax_year",
+      "question": "What will the personal allowance be in 2027 to 2028?",
+      "jurisdiction": "england",
+      "asOfDate": "2026-10-30",
+      "expect": "no_answer",
+      "mustInclude": [],
+      "mustNotInclude": []
+    }
+  ]
+}

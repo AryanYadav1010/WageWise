@@ -60,7 +60,7 @@ describe("what the model is shown", () => {
 
   it("uses the tax year asked about, and drops figures from a different year's rates", async () => {
     await seed();
-    const lastYear: ChatRequest = { question: "What are the Scottish income tax rates?", nation: "scotland", asOfDate: "2025-10-01" };
+    const lastYear: ChatRequest = { question: "What are the starter, basic and intermediate rates of income tax?", nation: "scotland", asOfDate: "2025-10-01" };
     const first = recordingModel(abstain);
     const reply = await ask(first, lastYear);
     expect(sentUrls(reply)).toContain("https://www.gov.uk/scottish-income-tax/2025-to-2026-tax-year");

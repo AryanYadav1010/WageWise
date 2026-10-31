@@ -67,7 +67,7 @@ The interface is inspired by answer engines such as Perplexity: one question box
 |---|---|---|
 | Right section in the top 5 results (hybrid Recall@5) | at least 90% | **100%** |
 | Results from the wrong nation or tax year | 0 | **0** |
-| Answer benchmark, automatic checks | as high as possible | **30/30** tuned set, **16/17** held-out set |
+| Answer benchmark, automatic checks | as high as possible | **30/30** tuned set, **14/20** new held-out set (all 6 misses are refusals, no wrong answers) |
 
 ---
 
@@ -93,7 +93,7 @@ The interface is inspired by answer engines such as Perplexity: one question box
 - **Accounts or saved history.**
 - **Dashboards and alerting.** Logs contain the data, but nothing watches them yet.
 - **CI on GitHub.** The code is in a private repository, but GitHub doesn't start workflows there (`startup_failure`, 30 Oct), as on another private repository on the same account. The same CI steps pass on a clean clone of the pushed commit, run locally.
-- **Human review of answer quality.** The review sheets and [checklist](docs/ANSWER_REVIEW_CHECKLIST.md) are ready, but no person has filled them in.
+- **A recorded human review of the current answers.** The owner reports reviewing earlier answers, but no marks are recorded in this repository, and the answers changed on 31 Oct. See the [checklist](docs/ANSWER_REVIEW_CHECKLIST.md).
 
 ---
 
@@ -302,32 +302,71 @@ GOV.UK excerpts are shown with this attribution: *Contains public sector informa
 | Meaning (vector) | 100% | 0.950 | 0 | 349 ms |
 | **Hybrid before V2** | 95% | 0.883 | 0 | 373 ms |
 | **Hybrid in V2** | **100%** | **0.925** | **0** | **331 ms** |
+| **Hybrid in V2.1** | **100%** | **0.925** | **0** | **474 ms** |
 
 *Recall@5: how often the right section appears in the top 5. MRR: how near the top it appears, where 1.0 is always first.*
 
-Hybrid improved because vector ranks now count three times as much as keyword ranks. Vector search alone still has a higher MRR; keywords are kept for exact codes such as "1257L".
+Hybrid improved in V2 because vector ranks count three times as much as keyword ranks. V2.1 changed no retrieval score: its gain is in refusals and nation handling, measured below. Keyword-only MRR fell from 0.742 to 0.717 in V2.1, but keyword-only isn't what the app uses.
+
+Vector search alone still has a higher MRR because of one question out of 20 (`nat-08`). A vector weight of 8 would match it, but tuning to one question would be overfitting, so the weight stays at 3. Keywords don't improve ranking on this dataset. They are kept for exact codes such as "1257L" and as the fallback when embeddings are unavailable.
+
+The thresholds stay at 0.69 and 0.75. The strictest similarity threshold keeping 95% of answerable questions is still 0.709.
 
 ### Answer benchmark (real Claude Haiku 5.5)
 Each question runs twice through the full pipeline. Automatic checks cover behaviour, required and forbidden text, nation and tax year. Reports are in `evals/answers/results/`.
 
-| Set | Before V2 | V2 |
-|---|---|---|
-| Frozen set of 30, used for tuning | 26/30 | **30/30** |
-| Held-out set of 17, written after tuning and never used to change anything | not run | **16/17** |
-| "Should I…" set of 12, used to build the recommendation check | 11/12 | **12/12** |
-| "Should I…" set of 8 in other wordings | not run | **8/8**, 5 of them refused |
+| Set | Before V2 | V2 | V2.1 |
+|---|---|---|---|
+| Frozen set of 30, used for tuning | 26/30 | 30/30 | **30/30** |
+| First held-out set of 17 | not run | 16/17 | **17/17** (no longer unseen: its miss was fixed on request) |
+| "Should I…" set of 12, used to build the recommendation check | 11/12 | 12/12 | **12/12** |
+| "Should I…" set of 8 in other wordings | not run | 8/8 | **8/8** |
+| Jurisdiction set of 20, used to build the V2.1 fixes | not run | not run | **20/20** |
+| **New held-out set of 20, run blind once** | not run | not run | **14/20** |
 
-The 30/30 is flattering because fixes targeted those failures, so **the held-out 16/17 is the fairer measure**. Its miss: "What is the advanced rate of income tax?" for Scotland is refused, though the answer is in the corpus. Both sets are small, and the thresholds were chosen on the benchmark data.
+**The blind 14/20 is the fairest measure.** All 6 misses are refusals of casually worded questions, such as "Scottish starter rate please". No answer was wrong, and all 7 conflict, unsupported, injection and advice cases behaved correctly. The set scored 14/20 again on the final code, which isn't a blind result. It hasn't been tuned on.
+
+V2 note: the 30/30 is flattering because fixes targeted those failures, and the first held-out score was the fairer measure at the time. Its miss: "What is the advanced rate of income tax?" for Scotland is refused, though the answer is in the corpus. Both sets are small, and the thresholds were chosen on the benchmark data.
 
 The "Should I…" sets only look for recommendation wording, so they show the wording is gone, not that the answers are right. The set of 8 passed first time, but it then exposed one phrasing the detector missed, which was fixed, so it no longer counts as held out. Four of the 12 and five of the 8 were refused, so the check was tested on 11 answered questions, and many personal questions get no answer at all.
 
 **Human review is still pending.** The sheets have blank columns for a person to mark correctness, citation support, completeness, recommendation wording, abstention and injection resistance. Follow [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md).
 
+### V2.1: nation and tax-year fixes
+**Root cause of the jurisdiction bug.** None of the 81 approved chunks contains the word "England", and only one contains "Northern Ireland". So a nation named in a question counted as a word the guidance had to contain, and it also pulled similarity below the floor. "What is the higher rate of Income Tax in England?" scored 0.678 against a 0.69 floor, while the same question with England selected scored 0.697 and every word matched. Scotland and Wales hid the bug because their guides do use those words.
+
+**The fix.** A nation in the question now becomes the nation filter and leaves the search and evidence text. A tax year in the question sets the date filter, which also made approved past-year guidance reachable for the first time.
+
+**Rejected on measurement:**
+- Letting all-words evidence bypass the floor: it passed "How much is Child Benefit?".
+- Adding the nation to the embedded text: it passed council tax, bitcoin and Child Benefit questions for Scottish and Welsh readers.
+- Adding the nation to the keyword text: it brought no measured ranking gain, so it was removed.
+
+| Check on frozen questions | Result |
+|---|---|
+| Named nation vs selected nation, 52 questions × 4 nations | **208/208 identical** results and decisions |
+| Unanswerable questions passing the gate, across all 4 nations | **8 of 108**: the 2 questions that also passed before this work, `ty-06` and `year-03`, once per nation. The model and date filter handle them in the answer benchmark |
+
+Automated versions of these checks are in `apps/api/tests/jurisdiction.test.ts` and `search.db.test.ts`.
+
+### Failure testing on real servers (31 Oct)
+| Case | Result |
+|---|---|
+| Empty, blank, too long, bad JSON, wrong type, extra field, bad nation, bad date | HTTP 400, no model call |
+| NUL byte in a question | Handled, answered normally |
+| Invalid API key | Sources only, HTTP 200, no key or provider text in the response |
+| Model timeout (1 s limit) | Sources only, HTTP 200 |
+| Injection (reveal prompt, fake £99,999 allowance) | Refused, or answered with the real £12,570 |
+| Payday: Christmas Day, New Year in Scotland and England, weekend, invalid input | Correct dates; fractional pence and a missing weekend rule rejected. These cases ran just before the final search change, which doesn't touch the calculator; the final browser run confirmed payday still works |
+| Server logs, 71 lines | No question text, no secrets |
+
+Browser checks on 31 Oct (headless Chrome, desktop and mobile dark mode): the [demo flow](docs/DEMO.md), the conflict prompt and its button, citations with GOV.UK links, a refusal and the payday calculator all worked, with no console errors. A final desktop run on the finished code passed all 18 steps. Mobile dark mode was last run just before the final search change.
+
 ### Engineering checks
 | Check | Result |
 |---|---|
-| Unit and HTTP tests | 258 pass (API 251, web 7) |
-| Database tests on an isolated branch | 66 pass, about 8.5 minutes |
+| Unit and HTTP tests | 298 pass (API 291, web 7) |
+| Database tests on an isolated branch | 77 pass, about 13 minutes |
 | Typecheck, lint, production build | Pass |
 | `npm audit --omit=dev` | 0 vulnerabilities |
 | Embedding library upgrade | Vectors match the old version (cosine 1.0000000) |
@@ -368,7 +407,8 @@ No real traffic exists, so **a real-world hit rate is unknown**. In the benchmar
 | Invented figures | Code removes any sentence whose figures aren't in its cited passage |
 | Invented wording | Sentences mostly absent from the passage, or about the sources themselves, are removed |
 | Fake citations | Citations to unknown sources are removed; every response is schema-checked, and answer sources must be on GOV.UK |
-| Weak matches | A two-signal evidence gate stops the pipeline before the AI is called |
+| Weak matches | An evidence gate stops the pipeline before the AI is called. An answer needs strong similarity, every meaningful word in one passage, or every specific word in a passage written for the reader's part of the UK |
+| Nation and tax year | A nation or tax year named in the question sets the filter, exactly as if selected. If the question and the selection disagree, the app asks instead of choosing |
 | Wrong nation | Nation filter on every search |
 | Out-of-date rates | Dated sections are withheld outside their stated period |
 | Unlicensed content | The database view exposes approved content only, and a trigger refuses vectors for unapproved chunks |
@@ -389,9 +429,9 @@ No real traffic exists, so **a real-world hit rate is unknown**. In the benchmar
 These are real and should be stated honestly when presenting.
 
 1. **Checks are not proof.** They catch invented figures, sources and wording. A sentence using the source's words can still give a wrong meaning, so human review and the link to GOV.UK still matter.
-2. **Some valid questions are refused.** The held-out test found one: the Scottish advanced rate.
+2. **Casually worded questions are often refused.** The blind test refused 6 of 20, including "Scottish starter rate please" and "What is the Class 4 rate in 2026/27?". This is safe, but it's the biggest quality gap. Comparing numbers in a question with tax bands ("income over £50,270") isn't supported either.
 3. **Advice detection is wording-based.** Verdicts, instructions and recommendation phrases are removed by code, but a recommendation in other words can still pass, and a sentence quoting GOV.UK can still steer a reader ("the quickest way is…"). A question that isn't recognised as advice gets no advice notice. Human review is the backstop, and legal advice is needed before a commercial launch.
-4. **Answers vary between runs.** The model doesn't support a fixed temperature, and only about half of questions gave identical text across two runs without the cache. Facts passed in both runs on the frozen set.
+4. **Answers vary between runs.** The model doesn't support a fixed temperature, and 15 of 30 frozen questions gave identical text across two runs without the cache. Required facts passed in both runs on the frozen set, and cached repeats are identical.
 5. **Thresholds were tuned on small datasets** and must be rechecked when guides are added.
 6. **Coverage is narrow:** 5 guides, covering 20 of the 47 answerable retrieval questions.
 7. **Ranking ties** can move a result by one place between databases.
@@ -469,7 +509,7 @@ These are real and should be stated honestly when presenting.
 2. **Idea:** an assistant that shows its evidence and knows when to stop.
 3. **Demo:** the questions below.
 4. **How it works:** retrieve, generate, verify.
-5. **Results:** 100% Recall@5, zero wrong-nation or wrong-year results, 16/17 on unseen questions.
+5. **Results:** 100% Recall@5, zero wrong-nation or wrong-year results, 14/20 on unseen questions with every miss a refusal, not a wrong answer.
 6. **Honesty:** what citation checks can't catch, and what's next.
 
 ### Demo script
@@ -483,9 +523,9 @@ These are real and should be stated honestly when presenting.
 ### Portfolio or CV summary
 - Built a full-stack RAG chatbot in TypeScript (React, Fastify, Postgres with pgvector) that answers UK tax questions only from licence-approved GOV.UK guidance.
 - Implemented weighted hybrid retrieval, reaching 100% Recall@5 with zero wrong-nation or wrong-year results on a labelled benchmark of approved guides.
-- Built an answer evaluation that improved results from 26/30 to 30/30, with 16/17 on held-out questions, using code-based verification, a two-signal evidence gate and prompt-injection defences.
+- Built an answer evaluation that improved results from 26/30 to 30/30, with 14/20 on blind held-out questions and no wrong answers, using code-based verification, a two-signal evidence gate and prompt-injection defences.
 - Added a provably safe answer cache that cut repeat answers from about 2 s to 0.5 s, plus spend ceilings and schema-checked API responses.
-- Covered the system with 324 automated tests across unit, HTTP and real database layers.
+- Covered the system with 375 automated tests across unit, HTTP and real database layers.
 
 ### Questions people may ask
 - **Is it financial advice?** No. It gives general information and says so on every answer.

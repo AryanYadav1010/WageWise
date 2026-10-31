@@ -1,6 +1,7 @@
 import { AnswerModelError, type AnswerDraft, type AnswerModel, type AnswerPrompt, type CostedDraft } from "../llm/answer-model.ts";
 import { DraftCache, isCacheable } from "./draft-cache.ts";
-import type { Nation, SearchOutcome, SearchRequest, SearchResult, WarnLogger } from "../retrieval/search.ts";
+import { readJurisdiction } from "../retrieval/jurisdiction.ts";
+import { hasOwnGuideEvidence, type Nation, type SearchOutcome, type SearchRequest, type SearchResult, type WarnLogger } from "../retrieval/search.ts";
 
 // Question → retrieval → evidence gate → LLM draft → citation verification → answer.
 // The LLM never sees anything but approved, in-date, right-nation passages, and nothing it
@@ -28,6 +29,8 @@ export type ChatSource = {
 
 export type AbstainReason =
   | "too_vague"
+  | "nation_conflict"
+  | "personal_advice"
   | "no_evidence"
   | "relevance_unavailable"
   | "model_abstained"
@@ -63,6 +66,9 @@ const PERSONAL_ADVICE_PATTERN = /\b(should(n't|nt)? (i|we)|(shall|ought) (i|we)|
 export function asksForPersonalAdvice(question: string): boolean {
   return PERSONAL_ADVICE_PATTERN.test(question);
 }
+
+// "Should I…" says nothing about the rule being asked about, and it pulls a search away from the guidance.
+const ADVICE_OPENING = /^(just answer yes or no: *)?(should (i|we)|shall (i|we)|ought (i|we) to|is it (worth|wise|sensible|a good idea)( to)?|would it be (better|best|wise)( for (me|us))?( to)?|do you (think|recommend)( (i|we))?( should)?|would you (advise|recommend)( me| us)?( to)?|am i better off) +/i;
 
 /** Neutralises anything in source text that could close or forge the <source> wrapper. */
 export function escapeSourceText(text: string): string {
@@ -115,7 +121,7 @@ function normaliseForFigures(text: string): string {
 }
 
 // A sentence about the sources, not about the rules: it can't be checked and has been wrong in testing.
-const META_PATTERN = /\b(sources?|guidance|passages?|pages?)\b[^.]{0,30}\b(do|does|did|is|are|states?|says?|explains?|mentions?|lists?|gives?|shows?|cannot|can't)\b/i;
+const META_PATTERN = /\b(the|these|those) (sources?|passages?)\b|\b(sources?|guidance|passages?|pages?|tables?)\b[^.]{0,30}\b(do|does|did|is|are|states?|says?|explains?|mentions?|lists?|gives?|shows?|cannot|can't)\b/i;
 const STOP_WORDS = new Set("that this with from your have will they them then than when what which there their these those been were would could should about into also such only more most some other because while".split(" "));
 // WageWise explains rules and never tells people what to do, so this wording is refused in every answer.
 const RECOMMENDATION_PATTERN = /\b(i|we)('d| would)? (recommend|suggest|advise)\b|\bi would\b|\bmy (advice|recommendation)\b|\byou (should|ought to|had better|may want to|might want to)\b|\b(your best|good idea|bad idea|better off|worth it|worthwhile)\b/i;
@@ -212,14 +218,18 @@ async function draftWithCache(dependencies: ChatDependencies, prompt: AnswerProm
   return { draft, cached: false };
 }
 
-export async function answerQuestion(dependencies: ChatDependencies, request: ChatRequest): Promise<ChatAnswer> {
-  const personalAdviceRequested = asksForPersonalAdvice(request.question);
+export async function answerQuestion(dependencies: ChatDependencies, asked: ChatRequest): Promise<ChatAnswer> {
+  const personalAdviceRequested = asksForPersonalAdvice(asked.question);
+  const { conflict, nation } = readJurisdiction(asked.question, asked.nation);
+  if (conflict) return abstained("nation_conflict", [], personalAdviceRequested, null);
+  const request = { ...asked, nation };
   const startedAt = performance.now();
-  const outcome = await dependencies.search({ query: request.question, nation: request.nation, asOfDate: request.asOfDate, limit: MAX_SOURCES });
+  const query = personalAdviceRequested ? request.question.replace(ADVICE_OPENING, "") : request.question;
+  const outcome = await dependencies.search({ query, nation: request.nation, asOfDate: request.asOfDate, limit: MAX_SOURCES });
   const retrievalMs = Math.round(performance.now() - startedAt);
 
   // One word with no code in it (like "pension", not "P45") can't be answered well: ask for more.
-  if (outcome.termCount <= 1 && !/\d/.test(request.question)) return abstained("too_vague", [], personalAdviceRequested, null);
+  if (outcome.termCount <= 1 && !/\d/.test(request.question)) return abstained(personalAdviceRequested ? "personal_advice" : "too_vague", [], personalAdviceRequested, null);
 
   const safeResults = outcome.results.filter(result => !looksLikeInjection(result.passage));
   if (safeResults.length < outcome.results.length) {
@@ -233,7 +243,9 @@ export async function answerQuestion(dependencies: ChatDependencies, request: Ch
   // Without that we cannot tell weak keyword or vector hits from real evidence, so the model is not called.
   if (outcome.relevance !== "ok") return abstained("relevance_unavailable", uncited(), personalAdviceRequested, null);
   const similarEnough = (outcome.bestSimilarity ?? 0) >= dependencies.minAnswerSimilarity;
-  if (!similarEnough && !(outcome.allTermsMatch && outcome.termCount >= 3)) return abstained("no_evidence", [], personalAdviceRequested, null);
+  if (!similarEnough && !(outcome.allTermsMatch && outcome.termCount >= 3) && !hasOwnGuideEvidence(outcome)) {
+    return personalAdviceRequested ? abstained("personal_advice", uncited(), true, null) : abstained("no_evidence", [], false, null);
+  }
 
   let draft: CostedDraft;
   let cached: boolean;

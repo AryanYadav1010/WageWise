@@ -44,6 +44,33 @@ async function start(chat: ChatService | null, chatLimit?: number, extra: Record
 }
 const post = (instance: FastifyInstance, payload: unknown) => instance.inject({ method: "POST", url: "/api/chat", payload: payload as object });
 
+describe("jurisdiction and tax year", () => {
+  const ask = async (chat: ChatService, payload: object) => (await post(await start(chat), payload)).json();
+
+  it("reports the nation named in the question as the one applied, with no 'you didn't say' notice", async () => {
+    const { chat, requests } = fakeChat(grounded);
+    const body = await ask(chat, { question: "What is the higher rate in Scotland?" });
+    expect(body.request.jurisdiction).toBe("scotland");
+    expect(requests[0]?.nation).toBeNull();
+    expect(body.notices.join(" ")).not.toContain("didn't say where");
+    expect(body.clarifyNations).toEqual([]);
+  });
+
+  it("offers the named nation when it conflicts with the selection", async () => {
+    const { chat } = fakeChat({ ...grounded, mode: "abstained", answer: [], abstainReason: "nation_conflict", sources: [] });
+    const body = await ask(chat, { question: "What is the higher rate in Scotland?", jurisdiction: "england" });
+    expect(body).toMatchObject({ abstainReason: "nation_conflict", clarifyNations: ["scotland"], request: { jurisdiction: "england" } });
+    expect(body.message).toContain("different part of the UK");
+  });
+
+  it("uses a tax year named in the question as the date", async () => {
+    const { chat, requests } = fakeChat(grounded);
+    const body = await ask(chat, { question: "What were the rates in 2025/26?" });
+    expect(body.request.asOfDate).toBe("2025-04-06");
+    expect(requests[0]?.asOfDate).toBe("2025-04-06");
+  });
+});
+
 describe("POST /api/chat", () => {
   it.each([
     ["too short", { question: "hi" }],

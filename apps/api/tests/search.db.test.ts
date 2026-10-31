@@ -114,6 +114,61 @@ describe("nation and tax-year filters", () => {
   });
 });
 
+describe("nations and tax years named in the query", () => {
+  beforeEach(async () => { await seed(); });
+  const NAMES = [["england", "England"], ["scotland", "Scotland"], ["wales", "Wales"], ["northern-ireland", "Northern Ireland"]] as const;
+  const signals = ({ results, bestSimilarity, relevance, termCount, allTermsMatch, ownGuideMatch }: Awaited<ReturnType<typeof search>>) =>
+    ({ urls: urls({ results }), bestSimilarity, relevance, termCount, allTermsMatch, ownGuideMatch });
+
+  it.each(NAMES)("treats %s named in the question exactly like selecting it", async (nation, name) => {
+    const typed = await search(`What is the higher rate of income tax in ${name}?`);
+    const selected = await search("What is the higher rate of income tax?", { nation });
+    const both = await search(`What is the higher rate of income tax in ${name}?`, { nation });
+    expect(signals(typed)).toEqual(signals(selected));
+    expect(signals(both)).toEqual(signals(selected));
+  });
+
+  it("never lets a nation's name count as a word the guidance must contain", async () => {
+    expect((await search("What is the higher rate of Income Tax in England?")).allTermsMatch).toBe(true);
+  });
+
+  it("keeps Scottish bands away from a question that names England, and the reverse", async () => {
+    expect(urls(await search("income tax rates in England")).some(url => url.includes("scottish-income-tax"))).toBe(false);
+    expect(urls(await search("Scottish income tax rates")).some(url => url.endsWith("/income-tax-rates"))).toBe(false);
+  });
+
+  it("treats the rates table shared by England, Wales and Northern Ireland as guidance for those nations", async () => {
+    for (const nation of ["england", "wales", "northern-ireland"] as const) {
+      expect((await search("What is the higher rate?", { nation })).ownGuideMatch).toBe(true);
+    }
+  });
+
+  it("does not count generic words as evidence that guidance covers a question", async () => {
+    expect((await search("How much will I get?", { nation: "england" })).ownGuideMatch).toBe(false);
+  });
+
+  it("counts every word in a passage only that nation gets as its own guide covering the question", async () => {
+    expect((await search("What is the advanced rate?", { nation: "scotland" })).ownGuideMatch).toBe(true);
+    expect((await search("What is the advanced rate?", { nation: "wales" })).ownGuideMatch).toBe(false);
+    expect((await search("What is the advanced rate?")).ownGuideMatch).toBe(false);
+  });
+
+  it("lifts the similarity floor only on own-guide evidence", async () => {
+    const floored = (query: string, nation: SearchRequest["nation"]) => searchGuidance({ pool: database.pool, provider, logger: silentLogger, retry, minSimilarity: 0.99 },
+      { query, nation, asOfDate: "2026-10-28", limit: 10 });
+    expect((await floored("What is the advanced rate?", "scotland")).relevance).toBe("ok");
+    expect(await floored("How much is Child Benefit?", "scotland")).toMatchObject({ relevance: "below_threshold", results: [] });
+  });
+
+  it("uses a tax year named in the query, whichever way it is written", async () => {
+    const past = "https://www.gov.uk/scottish-income-tax/2025-to-2026-tax-year";
+    for (const year of ["2025 to 2026", "2025/26", "2025-26"]) {
+      expect(urls(await search(`Scottish income tax rates ${year}`, { nation: "scotland", asOfDate: "2026-10-28" }))).toContain(past);
+    }
+    expect(urls(await search("Scottish income tax rates", { nation: "scotland", asOfDate: "2026-10-28" }))).not.toContain(past);
+  });
+});
+
 describe("results and provenance", () => {
   beforeEach(async () => { await seed(); });
 
