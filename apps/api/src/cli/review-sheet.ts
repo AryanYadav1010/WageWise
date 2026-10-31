@@ -58,4 +58,4 @@ const lines = [
 ];
 mkdirSync(new URL("review/", ROOT), { recursive: true });
 writeFileSync(new URL("review/v3-priority.md", ROOT), lines.join("\n"));
-console.log(`${rows.length} rows: ${RISKS.map(risk => `${risk} ${rows.filter(row => row.risk === risk).length}`).join(", ")}`);
+process.stdout.write(`${rows.length} rows: ${RISKS.map(risk => `${risk} ${rows.filter(row => row.risk === risk).length}`).join(", ")}\n`);
