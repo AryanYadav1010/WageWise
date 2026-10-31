@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentTaxYearStart, finalQuestion, pinTaxYear, searchSubject, readJurisdiction, taxYearIn, taxYearStart, withoutTaxYear, withTaxYear } from "../src/retrieval/jurisdiction.ts";
+import { currentTaxYearStart, finalQuestion, namesPairOfNations, pinTaxYear, searchSubject, taxYearsIn, readJurisdiction, taxYearIn, taxYearStart, withoutTaxYear, withTaxYear } from "../src/retrieval/jurisdiction.ts";
 
 describe("nations named in a question", () => {
   it.each([
@@ -38,7 +38,7 @@ describe("nations named in a question", () => {
   });
 
   it("does not choose when several nations are named and none is selected", () => {
-    expect(readJurisdiction("Do I pay Scottish tax if I live in England?", null)).toMatchObject({ nation: null, named: ["england", "scotland"], conflict: false });
+    expect(readJurisdiction("Do I pay Scottish tax if I live in England?", null)).toMatchObject({ nation: null, named: ["scotland", "england"], conflict: false });
   });
 
   it("accepts a selected nation that is one of several named", () => {
@@ -140,5 +140,58 @@ describe("finalQuestion", () => {
   it("leaves anything that doesn't end in a question", () => {
     expect(finalQuestion("What is the rate? I live in Wales.")).toBe("What is the rate? I live in Wales.");
     expect(finalQuestion("higher rate")).toBe("higher rate");
+  });
+});
+
+describe("years counted from the one under discussion", () => {
+  const today = "2026-10-31";
+  const discussed = "What was the rate in 2025 to 2026?";
+
+  it.each([
+    ["And the year before?", "And the 2024 to 2025 tax year?"],
+    ["and the year before that?", "and the 2024 to 2025 tax year?"],
+    ["What about the previous year?", "What about the 2024 to 2025 tax year?"],
+    ["And the tax year before?", "And the 2024 to 2025 tax year?"],
+    ["And the year after?", "And the 2026 to 2027 tax year?"],
+    ["and the following year?", "and the 2026 to 2027 tax year?"],
+    ["the following tax year", "the 2026 to 2027 tax year"]
+  ])("pins %s", (question, pinned) => {
+    expect(pinTaxYear(question, today, discussed)).toBe(pinned);
+  });
+
+  it("counts from today when no year is under discussion", () => {
+    expect(pinTaxYear("And the year before?", today, "What is the rate?")).toBe("And the 2025 to 2026 tax year?");
+  });
+
+  it("keeps last tax year counted from today, even mid-conversation", () => {
+    expect(pinTaxYear("And last tax year?", today, "What was the rate in 2024 to 2025?")).toBe("And the 2025 to 2026 tax year?");
+  });
+
+  it("leaves these words alone with no conversation to count from", () => {
+    expect(pinTaxYear("What happens the year after I retire?", today)).toBe("What happens the year after I retire?");
+  });
+});
+
+describe("two sides in one question", () => {
+  it("names nations in the order asked", () => {
+    expect(readJurisdiction("Wales and Scotland", null).named).toEqual(["wales", "scotland"]);
+    expect(readJurisdiction("Scotland and Wales", null).named).toEqual(["scotland", "wales"]);
+  });
+
+  it.each(["Scotland and Wales", "Welsh and Scottish rates", "in England and in Wales", "Scotland vs Wales", "England or Northern Ireland", "Scotland's and Wales's"])("%s is a pair", question => {
+    expect(namesPairOfNations(question)).toBe(true);
+  });
+
+  it.each(["I live in Scotland and work in Wales", "moved from Scotland to Wales", "New South Wales and Scotland"])("%s isn't", question => {
+    expect(namesPairOfNations(question)).toBe(false);
+  });
+
+  it("finds every year, once each", () => {
+    expect(taxYearsIn("Compare 2025/26 with 2026 to 2027 and 2025-26")).toEqual(["2025 to 2026", "2026 to 2027"]);
+    expect(taxYearsIn("nothing here")).toEqual([]);
+  });
+
+  it("puts every year in GOV.UK's wording", () => {
+    expect(readJurisdiction("rate in 2025/26 and 2026/27", null).text).toBe("rate in 2025 to 2026 and 2026 to 2027");
   });
 });

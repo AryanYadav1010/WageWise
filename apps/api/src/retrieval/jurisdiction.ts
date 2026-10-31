@@ -12,6 +12,8 @@ const NATION_NAMES: readonly (readonly [Nation, string])[] = [
   ["wales", String.raw`(?<!\bnew south )wales|welsh`],
   ["northern-ireland", String.raw`northern ireland|northern irish`]
 ];
+const ANY_NATION = NATION_NAMES.map(([, names]) => names).join("|");
+const NATION_PAIR = new RegExp(`\\b(?:${ANY_NATION})\\b(?:['’]s)?,?\\s+(?:and|or|vs\\.?|versus)\\s+(?:(?:in|for)\\s+)?\\b(?:${ANY_NATION})\\b`, "i");
 const NATION_PATTERNS = NATION_NAMES.map(([nation, names]) => [nation, new RegExp(`(?:\\b(?:in|for|across|within) +)?\\b(?:${names})\\b(?:['’]s)?`, "gi")] as const);
 
 export type Jurisdiction = {
@@ -25,7 +27,13 @@ export type Jurisdiction = {
   text: string;
 };
 
+/** "Scotland and Wales" is a pair. "I live in Scotland and work in Wales" isn't. */
+export function namesPairOfNations(question: string): boolean {
+  return NATION_PAIR.test(question);
+}
+
 const TAX_YEAR = /\b(20\d{2}) *(?:to|\/|-|–|—) *(?:20)?(\d{2})\b/i;
+const EVERY_TAX_YEAR = new RegExp(TAX_YEAR.source, "gi");
 const isNextYear = (start: string, end: string) => (Number(start) + 1) % 100 === Number(end);
 const RELATIVE_YEAR = /\b(?:the +)?(?:(last|previous|this|current|next)(?: +tax)? +year|(past) +tax +year)(?:['’]s)?\b/gi;
 const YEAR_OFFSETS: Record<string, number> = { last: -1, previous: -1, past: -1, next: 1 };
@@ -36,10 +44,20 @@ export function currentTaxYearStart(date: string): string {
   return `${date >= `${year}-04-06` ? year : year - 1}-04-06`;
 }
 
-/** Puts "last tax year" into words the rest of the app understands, so a year is only ever worked out once, from today. */
-export function pinTaxYear(question: string, today: string): string {
+/** Years counted from the one under discussion, not from today. */
+const YEAR_BEFORE = /\b(?:the +)?(?:(?:tax +)?year +before(?: +that)?|(?:previous|prior)(?: +tax)? +year)\b/gi;
+const YEAR_AFTER = /\b(?:the +)?(?:(?:tax +)?year +after(?: +that)?|following(?: +tax)? +year)\b/gi;
+
+/**
+ * Puts "last tax year" into words the rest of the app understands, so a year is only ever worked out once.
+ * "Last tax year" counts from today. In a conversation, "the year before" counts from the year just discussed.
+ */
+export function pinTaxYear(question: string, today: string, discussed?: string): string {
   const year = Number(currentTaxYearStart(today).slice(0, 4));
-  return question.replace(RELATIVE_YEAR, (_, near?: string, past?: string) => {
+  const inContext = (start: number) => `the ${start} to ${start + 1} tax year`;
+  const base = discussed === undefined ? null : Number(taxYearStart(discussed)?.slice(0, 4) ?? year);
+  const anchored = base === null ? question : question.replace(YEAR_BEFORE, inContext(base - 1)).replace(YEAR_AFTER, inContext(base + 1));
+  return anchored.replace(RELATIVE_YEAR, (_, near?: string, past?: string) => {
     const start = year + (YEAR_OFFSETS[(near ?? past ?? "").toLowerCase()] ?? 0);
     return `the ${start} to ${start + 1} tax year`;
   });
@@ -49,6 +67,12 @@ export function pinTaxYear(question: string, today: string): string {
 export function taxYearIn(question: string): string | null {
   const start = taxYearStart(question)?.slice(0, 4);
   return start === undefined ? null : `${start} to ${Number(start) + 1}`;
+}
+
+/** Every different tax year a question names, in GOV.UK's wording. */
+export function taxYearsIn(question: string): string[] {
+  const years = [...question.matchAll(EVERY_TAX_YEAR)].flatMap(([, start, end]) => start !== undefined && end !== undefined && isNextYear(start, end) ? [`${start} to ${Number(start) + 1}`] : []);
+  return [...new Set(years)];
 }
 
 /** The question with a different tax year: swapped if it names one, added if it doesn't. */
@@ -72,13 +96,14 @@ export function finalQuestion(text: string): string {
 
 /** The question with any tax year removed, for reading what else it asks. */
 export function withoutTaxYear(question: string): string {
-  return question.replace(new RegExp(`(?:the +)?${TAX_YEAR.source}(?: +tax +year)?`, "i"), " ");
+  return question.replace(new RegExp(`(?:the +)?${TAX_YEAR.source}(?: +tax +year)?`, "gi"), " ");
 }
 
 export function readJurisdiction(question: string, selected: Nation | null): Jurisdiction {
-  const named = NATION_PATTERNS.filter(([, pattern]) => question.match(pattern) !== null).map(([nation]) => nation);
+  // In the order the question names them, so a comparison reads the way it was asked.
+  const named = NATION_PATTERNS.map(([nation, pattern]) => [nation, question.search(pattern)] as const).filter(([, at]) => at >= 0).sort(([, a], [, b]) => a - b).map(([nation]) => nation);
   const stripped = NATION_PATTERNS.reduce((text, [, pattern]) => text.replace(pattern, " "), question);
-  const text = (stripped.replace(/\s+/g, " ").replace(/\s+([?.!,])/g, "$1").trim() || question).replace(TAX_YEAR, (year, start: string, end: string) => isNextYear(start, end) ? `${start} to ${Number(start) + 1}` : year);
+  const text = (stripped.replace(/\s+/g, " ").replace(/\s+([?.!,])/g, "$1").trim() || question).replace(EVERY_TAX_YEAR, (year, start: string, end: string) => isNextYear(start, end) ? `${start} to ${Number(start) + 1}` : year);
   return {
     nation: selected ?? (named.length === 1 ? named[0] ?? null : null),
     named,

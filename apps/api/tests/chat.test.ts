@@ -488,14 +488,14 @@ describe("conversations", () => {
     expect(model.prompts[0]?.user).not.toContain("Acme");
   });
 
-  it("answers a standalone question exactly as if there were no history", async () => {
+  it("answers a standalone question that names its nation exactly as if there were no history", async () => {
     const alone = setup();
     const inConversation = setup();
     await alone.ask("What is the Scottish starter rate?");
     const reply = await inConversation.ask("What is the Scottish starter rate?", [{ question: "What does tax code 1257L mean?", nation: "wales" }]);
     expect(inConversation.model.prompts).toEqual(alone.model.prompts);
     expect(inConversation.searches).toEqual(alone.searches);
-    expect(reply.conversation).toMatchObject({ kind: "standalone", nation: "scotland" });
+    expect(reply.conversation).toMatchObject({ kind: "standalone", nation: "scotland", carried: false });
   });
 
   it("remembers a standalone question without its nation name, ready to be changed", async () => {
@@ -567,37 +567,243 @@ describe("conversations", () => {
 
   describe("comparisons", () => {
     const welsh: PastTurn = { question: "What is the higher rate?", nation: "wales" };
+    const welshUrl = "https://www.gov.uk/welsh-income-tax";
     const bySide = (request: SearchRequest) => outcome([request.nation === "scotland"
       ? result({ passage: "Scottish higher rate 42%." })
-      : result({ sectionUrl: "https://www.gov.uk/welsh-income-tax", nations: ["wales"], passage: "Welsh higher rate 40%." })]);
-    const both = answer([{ text: "In Scotland it is 42%.", sourceIds: ["S1"] }, { text: "In Wales it is 40%.", sourceIds: ["S2"] }]);
+      : result({ sectionUrl: welshUrl, nations: ["wales"], passage: "Welsh higher rate 40%." })]);
+    const compareHistory = [scottish, welsh];
 
-    it("retrieves each side for its own nation and sends the model only those sources", async () => {
-      const { ask, model, searches } = setup(both, undefined, bySide);
-      const reply = await ask("Compare the two.", [scottish, welsh]);
-      expect(searches.map(search => search.nation)).toEqual(["scotland", "wales"]);
-      expect(searches.every(search => search.limit === 3)).toBe(true);
-      expect(reply).toMatchObject({ mode: "grounded_answer", conversation: { kind: "comparison", nation: null, turns: [scottish, welsh] } });
-      expect(model.prompts[0]?.user).toContain("1. What is the higher rate? (scotland) 2. What is the higher rate? (wales)");
+    /** Answers each side from the prompt it was given, as the real model only sees that side's sources. */
+    function sideModel(setupResult: ReturnType<typeof setup>, reply: (prompt: AnswerPrompt) => AnswerDraft | Error) {
+      setupResult.model.draft = async prompt => {
+        setupResult.model.prompts.push(prompt);
+        const draft = reply(prompt);
+        if (draft instanceof Error) throw draft;
+        return { ...draft, tokens: 100 };
+      };
+      return setupResult;
+    }
+    const honest = (prompt: AnswerPrompt) => prompt.user.includes("Scottish higher rate") ? said("It is 42%.", "S1") : said("It is 40%.", "S1");
+
+    it("answers each side alone: the model sees only that side's nation and sources", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), honest);
+      const reply = await run.ask("Compare the two.", compareHistory);
+      expect(run.searches.map(search => search.nation)).toEqual(["scotland", "wales"]);
+      expect(run.searches.every(search => search.limit === 6)).toBe(true);
+      const prompts = run.model.prompts.map(prompt => prompt.user);
+      expect(prompts).toHaveLength(2);
+      expect(prompts.find(prompt => prompt.includes("lives or works: scotland"))).not.toContain("Welsh higher rate");
+      expect(prompts.find(prompt => prompt.includes("lives or works: wales"))).not.toContain("Scottish higher rate");
+      expect(reply).toMatchObject({ mode: "grounded_answer", conversation: { kind: "comparison", nation: null, turns: [{ ...scottish, compared: true }, { ...welsh, compared: true }] } });
     });
 
-    it("refuses if either side lacks evidence", async () => {
-      const { ask, model } = setup(both, undefined, request => request.nation === "wales" ? outcome([]) : bySide(request));
-      expect((await ask("Compare the two.", [scottish, welsh])).abstainReason).toBe("no_evidence");
-      expect(model.prompts).toHaveLength(0);
+    it("labels each sentence with its side and renumbers citations to match", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), honest);
+      const reply = await run.ask("Compare the two.", compareHistory);
+      expect(reply.answer).toEqual([{ text: "It is 42%.", sourceIds: ["S1"], side: 0 }, { text: "It is 40%.", sourceIds: ["S2"], side: 1 }]);
+      expect(reply.sources.map(source => [source.id, source.url, source.cited])).toEqual([["S1", result().sectionUrl, true], ["S2", welshUrl, true]]);
     });
 
-    it("refuses an answer that only supports one side", async () => {
-      const { ask } = setup(said("In Scotland it is 42%.", "S1"), undefined, bySide);
-      expect((await ask("Compare the two.", [scottish, welsh])).abstainReason).toBe("no_verified_sentences");
+    it("can't attach a figure to the wrong side: it only passes against that side's own sources", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), prompt => prompt.user.includes("Scottish higher rate") ? said("It is 40%.", "S1") : said("It is 40%.", "S1"));
+      expect((await run.ask("Compare the two.", compareHistory)).abstainReason).toBe("comparison_incomplete");
     });
 
-    it("checks each sentence against its own citation", async () => {
-      const { ask } = setup(answer([{ text: "In Scotland it is 42%.", sourceIds: ["S2"] }, { text: "In Wales it is 40%.", sourceIds: ["S2"] }]), undefined, bySide);
-      const reply = await ask("Compare the two.", [scottish, welsh]);
-      expect(reply.mode).toBe("abstained");
-      expect(reply.dropReasons).toEqual({ unsupported_figure: 1 });
+    it("drops a sentence about another nation or year, even if its own source mentions them", async () => {
+      const passage = "Welsh higher rate 40%. Bands differ in Scotland, where it was 42% in 2025 to 2026.";
+      const search = (request: SearchRequest) => request.nation === "scotland" ? bySide(request) : outcome([result({ sectionUrl: welshUrl, nations: ["wales"], passage })]);
+      const run = sideModel(setup(said("x", "S1"), undefined, search), prompt => prompt.user.includes("Scottish higher rate") ? said("It is 42%.", "S1")
+        : answer([{ text: "In Scotland it was 42%.", sourceIds: ["S1"] }, { text: "It was 42% in 2025 to 2026.", sourceIds: ["S1"] }, { text: "It is 40%.", sourceIds: ["S1"] }]));
+      const reply = await run.ask("Compare the two.", compareHistory);
+      expect(reply.answer.map(sentence => sentence.text)).toEqual(["It is 42%.", "It is 40%."]);
     });
+
+    it("refuses if that leaves a side with nothing", async () => {
+      const passage = "Welsh higher rate 40%. Bands differ in Scotland, where it is 42%.";
+      const search = (request: SearchRequest) => request.nation === "scotland" ? bySide(request) : outcome([result({ sectionUrl: welshUrl, nations: ["wales"], passage })]);
+      const run = sideModel(setup(said("x", "S1"), undefined, search), prompt => prompt.user.includes("Scottish higher rate") ? said("It is 42%.", "S1") : said("In Scotland it is 42%.", "S1"));
+      expect((await run.ask("Compare the two.", compareHistory)).abstainReason).toBe("comparison_incomplete");
+    });
+
+    it("keeps a sentence naming its own side's nation and year", async () => {
+      const search = () => outcome([result({ passage: "In Scotland it is 42% for 2026 to 2027, and it was 41% for 2025 to 2026." })]);
+      const run = sideModel(setup(said("x", "S1"), undefined, search), prompt => prompt.user.includes("Question: What is the higher rate in 2025 to 2026?")
+        ? said("In Scotland it was 41% for 2025 to 2026.", "S1") : said("In Scotland it is 42% for 2026 to 2027.", "S1"));
+      const reply = await run.ask("Compare that with 2025 to 2026", [scottish]);
+      expect(reply.answer.map(sentence => sentence.text)).toEqual(["In Scotland it is 42% for 2026 to 2027.", "In Scotland it was 41% for 2025 to 2026."]);
+    });
+
+    it("lists a section both sides used once", async () => {
+      const shared = (request: SearchRequest) => outcome([result({ nations: ["scotland", "wales"], passage: `${request.nation} rate 42%.` })]);
+      const run = sideModel(setup(said("x", "S1"), undefined, shared), () => said("It is 42%.", "S1"));
+      const reply = await run.ask("Compare the two.", compareHistory);
+      expect(reply.sources).toHaveLength(1);
+      expect(reply.answer.map(sentence => sentence.sourceIds)).toEqual([["S1"], ["S1"]]);
+    });
+
+    it("keeps to the first few sentences of each side, and cites only those", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, request => outcome([result({ sectionUrl: `https://www.gov.uk/a/${request.nation}`, passage: "Rate 42%." }), result({ sectionUrl: `https://www.gov.uk/b/${request.nation}`, passage: "Rate 42%." })])), () =>
+        answer([{ text: "One is 42%.", sourceIds: ["S1"] }, { text: "Two is 42%.", sourceIds: ["S1"] }, { text: "Three is 42%.", sourceIds: ["S2"] }]));
+      const reply = await run.ask("Compare the two.", compareHistory);
+      expect(reply.answer.filter(sentence => sentence.side === 0)).toHaveLength(2);
+      expect(reply.sources.map(source => source.url)).toEqual(["https://www.gov.uk/a/scotland", "https://www.gov.uk/a/wales"]);
+    });
+
+    it("refuses a rate on one side against a description on the other", async () => {
+      const search = (request: SearchRequest) => outcome([result({ passage: request.nation === "scotland" ? "Tax code SD1 means the higher rate." : "Welsh higher rate 40%." })]);
+      const run = sideModel(setup(said("x", "S1"), undefined, search), prompt => prompt.user.includes("SD1") ? said("Tax code SD1 means the higher rate.", "S1") : said("It is 40%.", "S1"));
+      expect((await run.ask("Compare the two.", compareHistory))).toMatchObject({ mode: "abstained", abstainReason: "comparison_incomplete", answer: [] });
+    });
+
+    it("allows two descriptions", async () => {
+      const search = () => outcome([result({ passage: "Tax code SD1 means the higher rate." })]);
+      const { ask } = setup(said("Tax code SD1 means the higher rate.", "S1"), undefined, search);
+      expect((await ask("Compare the two.", compareHistory)).mode).toBe("grounded_answer");
+    });
+
+    it("gives a comparison target the last question's topic", async () => {
+      const run = sideModel(setup(said("x", "S1"), { status: "rewritten", question: "What is the Class 4 rate?" }, bySide), honest);
+      const reply = await run.ask("compare with Class 4", [{ question: "What is the Class 1 rate?", nation: "scotland" }]);
+      expect(run.rewriteCalls[0]?.user).toContain("<latest>What about Class 4?</latest>");
+      expect(reply.conversation.turns.map(turn => turn.question)).toEqual(["What is the Class 1 rate?", "What is the Class 4 rate?"]);
+    });
+
+    it("keeps the target's own nation, whatever the rewrite says", async () => {
+      const run = sideModel(setup(said("x", "S1"), { status: "rewritten", question: "What is the additional rate?" }, bySide), honest);
+      const reply = await run.ask("Compare that with the additional rate in Wales", [scottish]);
+      expect(reply.conversation.turns.map(turn => turn.nation)).toEqual(["scotland", "wales"]);
+    });
+
+    it("uses the target's own words if the rewrite fails", async () => {
+      const run = sideModel(setup(said("x", "S1"), new AnswerModelError("timeout", "slow"), bySide), honest);
+      const reply = await run.ask("compare with Class 4", [scottish]);
+      expect(reply.conversation.turns[1]).toMatchObject({ question: "What is Class 4?", nation: "scotland" });
+    });
+
+    it("asks if the target turns out to be the question it is compared with", async () => {
+      const run = sideModel(setup(said("x", "S1"), { status: "rewritten", question: "What is the higher rate?" }, bySide), honest);
+      expect((await run.ask("compare that with the higher rate", [scottish])).abstainReason).toBe("ambiguous_reference");
+    });
+
+    it.each<[string, (request: SearchRequest) => SearchOutcome]>([
+      ["one side has no evidence", request => request.nation === "wales" ? outcome([]) : bySide(request)],
+      ["the other side has no evidence", request => request.nation === "scotland" ? outcome([]) : bySide(request)]
+    ])("refuses the whole comparison when %s, showing neither side", async (_label, search) => {
+      const run = sideModel(setup(said("x", "S1"), undefined, search), honest);
+      const reply = await run.ask("Compare the two.", compareHistory);
+      expect(reply).toMatchObject({ mode: "abstained", abstainReason: "comparison_incomplete", answer: [], sources: [] });
+    });
+
+    it("refuses when the model won't answer one side", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), prompt => prompt.user.includes("Welsh higher rate") ? { abstain: true, abstainReason: "no", sentences: [] } : said("It is 42%.", "S1"));
+      expect((await run.ask("Compare the two.", compareHistory)).abstainReason).toBe("comparison_incomplete");
+    });
+
+    it("refuses when one side's year isn't covered", async () => {
+      const search = (request: SearchRequest) => outcome([result(request.query.includes("2024") ? { applicability: { status: "not_stated" } } : {})]);
+      const { ask } = setup(said("It is 42%.", "S1"), undefined, search);
+      expect((await ask("Compare that with 2024 to 2025", [scottish])).abstainReason).toBe("comparison_incomplete");
+    });
+
+    it("says the service is down, not that evidence is missing, if the model fails", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), prompt => prompt.user.includes("Welsh higher rate") ? new AnswerModelError("timeout", "slow") : said("It is 42%.", "S1"));
+      expect((await run.ask("Compare the two.", compareHistory)).abstainReason).toBe("model_unavailable");
+    });
+
+    it("isn't a conflict with the selection: asking to compare is a choice", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), honest);
+      expect((await run.ask("How does that compare with Wales?", [scottish], "scotland")).conversation.kind).toBe("comparison");
+      expect((await run.ask("Compare the higher rate in Scotland and Wales", [], "england")).conversation.kind).toBe("comparison");
+    });
+
+    it("counts both sides' tokens", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), honest);
+      expect((await run.ask("Compare the two.", compareHistory)).usage.tokens).toBe(200);
+    });
+
+    it("carries advice wording into each side", async () => {
+      const run = sideModel(setup(said("x", "S1"), undefined, bySide), () => said("Yes, it is 42%.", "S1"));
+      const reply = await run.ask("Compare the two.", [{ question: "Should I pay the higher rate?", nation: "scotland" }, { question: "Should I pay the higher rate?", nation: "wales" }]);
+      expect(reply.personalAdviceRequested).toBe(true);
+      expect(reply.abstainReason).toBe("comparison_incomplete");
+    });
+
+    it("still asks when the selection disagrees with a nation named after a comparison", async () => {
+      const { ask, searches } = setup();
+      const reply = await ask("What about Wales?", [{ ...scottish, compared: true }, { ...welsh, nation: "england", compared: true }], "england");
+      expect(reply.abstainReason).toBe("nation_conflict");
+      expect(searches).toHaveLength(0);
+    });
+
+    it("applies a rewritten follow-up to both sides", async () => {
+      const run = sideModel(setup(said("x", "S1"), { status: "rewritten", question: "What is the basic rate?" }, bySide), honest);
+      const reply = await run.ask("What about the basic rate?", [{ ...scottish, compared: true }, { ...welsh, compared: true }]);
+      expect(run.searches.map(search => [search.query, search.nation])).toEqual([["What is the basic rate?", "scotland"], ["What is the basic rate?", "wales"]]);
+      expect(reply.conversation.kind).toBe("comparison");
+    });
+  });
+
+  describe("an answer that loses its opening sentence", () => {
+    const passage = "Basic rate 20%. The Personal Allowance is £12,570.";
+    const search = () => outcome([result({ passage })]);
+    const draft = answer([{ text: "The table shows the basic rate is 20%.", sourceIds: ["S1"] }, { text: "The Personal Allowance is £12,570.", sourceIds: ["S1"] }]);
+
+    it("is refused: the sentences left don't answer the question", async () => {
+      const { ask } = setup(draft, undefined, search);
+      expect(await ask("What is the basic rate?", [], "england")).toMatchObject({ mode: "abstained", abstainReason: "no_verified_sentences", answer: [] });
+    });
+
+    it("isn't refused when a later sentence is dropped", async () => {
+      const { ask } = setup(answer([{ text: "The basic rate is 20%.", sourceIds: ["S1"] }, { text: "The table shows it is 20%.", sourceIds: ["S1"] }]), undefined, search);
+      expect((await ask("What is the basic rate?", [], "england")).answer.map(sentence => sentence.text)).toEqual(["The basic rate is 20%."]);
+    });
+
+    it("isn't refused for advice: dropping an opening yes is the aim", async () => {
+      const { ask } = setup(answer([{ text: "Yes, the basic rate is 20%.", sourceIds: ["S1"] }, { text: "The Personal Allowance is £12,570.", sourceIds: ["S1"] }]), undefined, search);
+      expect((await ask("Should I pay the basic rate?", [], "england")).answer.map(sentence => sentence.text)).toEqual(["The Personal Allowance is £12,570."]);
+    });
+  });
+
+  describe("the nation under discussion", () => {
+    it("is kept for a new question that doesn't say otherwise, and reported as carried", async () => {
+      const { ask, searches } = setup();
+      const reply = await ask("What is the basic rate?", [scottish]);
+      expect(searches[0]).toMatchObject({ nation: "scotland" });
+      expect(reply.conversation).toMatchObject({ kind: "standalone", nation: "scotland", carried: true, turns: [{ question: "What is the basic rate?", nation: "scotland" }] });
+    });
+
+    it("gives way to a nation named in the question", async () => {
+      const { ask, searches } = setup();
+      const reply = await ask("What is the basic rate in Wales?", [scottish]);
+      expect(searches[0]).toMatchObject({ nation: "wales" });
+      expect(reply.conversation).toMatchObject({ nation: "wales", carried: false });
+    });
+
+    it("gives way to the selection", async () => {
+      const { ask, searches } = setup();
+      const reply = await ask("What is the basic rate?", [scottish], "wales");
+      expect(searches[0]).toMatchObject({ nation: "wales" });
+      expect(reply.conversation.carried).toBe(false);
+    });
+
+    it("isn't carried out of a comparison of two nations", async () => {
+      const { ask, searches } = setup();
+      await ask("What is the basic rate?", [{ ...scottish, compared: true }, { question: "What is the higher rate?", nation: "wales", compared: true }]);
+      expect(searches[0]?.nation).toBeNull();
+    });
+
+    it("leaves a tax year behind: only the nation follows a new question", async () => {
+      const { ask, searches } = setup();
+      const reply = await ask("What is the basic rate?", [{ question: "What was the higher rate in 2025 to 2026?", nation: "scotland" }]);
+      expect(searches[0]?.query).toBe("What is the basic rate?");
+      expect(reply.conversation.asOfDate).toBe(today);
+    });
+  });
+
+  it("counts the year before from the year being discussed", async () => {
+    const { ask, searches } = setup(said("It was 42%.", "S1"), undefined, () => outcome([result({ passage: "For 2024 to 2025 the rate was 42%." })]));
+    await ask("And the year before?", [{ question: "What was the higher rate in 2025 to 2026?", nation: "scotland" }]);
+    expect(searches[0]?.query).toBe("What was the higher rate in 2024 to 2025?");
   });
 
   describe("the model's rewrite", () => {
@@ -619,8 +825,8 @@ describe("conversations", () => {
     });
 
     it("searches every nation when the rewrite really spans two", async () => {
-      const { ask, searches } = setup(undefined, rewritten("Compare the Scottish top rate with the additional rate in England"));
-      await ask("Compare that with the additional rate in England", [scottish]);
+      const { ask, searches } = setup(undefined, rewritten("Do the Scottish and English rates both apply here?"));
+      await ask("Do they both apply here?", [scottish]);
       expect(searches[0]?.nation).toBeNull();
     });
 
@@ -634,7 +840,7 @@ describe("conversations", () => {
       const { ask, searches } = setup(undefined, { status: "standalone", question: null });
       const reply = await ask("Is it taxed at source?", [scottish]);
       expect(reply.conversation.kind).toBe("standalone");
-      expect(searches[0]).toMatchObject({ query: "Is it taxed at source?", nation: null });
+      expect(searches[0]).toMatchObject({ query: "Is it taxed at source?", nation: "scotland" });
     });
 
     it.each<[string, FollowUpRewrite | Error]>([
@@ -706,11 +912,19 @@ describe("conversations", () => {
 
     it("never caches a comparison", async () => {
       const search = (request: SearchRequest) => outcome([result({ sectionUrl: `https://www.gov.uk/${request.nation}`, passage: "Higher rate 42%." })]);
-      const { ask, model } = setup(answer([{ text: "It is 42%.", sourceIds: ["S1", "S2"] }]), undefined, search);
+      const { ask, model } = setup(said("It is 42%.", "S1"), undefined, search);
       const cache = fresh();
       const history = [scottish, { ...scottish, nation: "wales" as const }];
       await ask("Compare the two.", history, null, cache);
       await ask("Compare the two.", history, null, cache);
+      expect(model.prompts).toHaveLength(4);
+    });
+
+    it("never gives a question using a carried nation a cached answer", async () => {
+      const { ask, model } = setup();
+      const cache = fresh();
+      await ask("What is the higher rate?", [], "scotland", cache);
+      expect((await ask("What is the higher rate?", [scottish], null, cache)).usage.cached).toBe(false);
       expect(model.prompts).toHaveLength(2);
     });
   });

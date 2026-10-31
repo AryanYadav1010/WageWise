@@ -12,7 +12,7 @@ export type ChatService = (request: ChatRequest, logger: WarnLogger) => Promise<
 
 // Strict, with no place for an answer: what the browser says was asked is treated as a question,
 // never as a fact, so a forged history can do no more than typing the same words could.
-const pastTurnSchema = z.object({ question: z.string().trim().min(3).max(600), nation: z.enum(NATIONS).nullable() }).strict();
+const pastTurnSchema = z.object({ question: z.string().trim().min(3).max(600), nation: z.enum(NATIONS).nullable(), compared: z.literal(true).optional() }).strict();
 
 const chatRequestSchema = z.object({
   question: z.string().trim().min(3).max(500),
@@ -26,6 +26,7 @@ const ABSTAIN_MESSAGES: Record<AbstainReason, string> = {
   personal_advice: "WageWise can't say what you should do, and the approved guidance doesn't answer this directly.",
   too_vague: "That's quite broad. Try a full question, such as what you want to know about it and where in the UK you live.",
   nation_conflict: "Your question names a different part of the UK from the one selected. Tax rules can differ, so please choose which one you mean.",
+  comparison_incomplete: "I can't compare these, because the approved guidance doesn't support both sides, and half a comparison could mislead. You can ask about each one separately.",
   ambiguous_reference: "I'm not sure what that refers to, so I won't guess. Please ask the full question, including the topic and the nation or tax year you mean.",
   year_not_covered: "The approved guidance doesn't cover that tax year, and I won't use figures from a different year. HMRC publishes past rates on GOV.UK.",
   no_evidence: "I couldn't find approved official guidance that covers this, so I won't guess. Try rephrasing, or check GOV.UK directly.",
@@ -42,14 +43,13 @@ const NATION_NAMES: Record<Nation, string> = { england: "England", scotland: "Sc
 
 function noticesFor(answer: ChatAnswer, previous: PastTurn | undefined): string[] {
   const notices: string[] = [];
-  const { kind, nation } = answer.conversation;
+  const { kind, nation, carried } = answer.conversation;
   const earlier = previous?.nation ?? null;
   if (answer.personalAdviceRequested) notices.push(ADVICE_NOTICE);
   if (nation === null && kind !== "comparison" && answer.sources.length > 0) {
-    notices.push(earlier === null
-      ? "You didn't say where you live or work. Tax, employment and benefit rules can differ in Scotland, Wales and Northern Ireland."
-      : `This is a new question, so it isn't limited to ${NATION_NAMES[earlier]} like your last one. Tax rules can differ across the UK.`);
+    notices.push("You didn't say where you live or work. Tax, employment and benefit rules can differ in Scotland, Wales and Northern Ireland.");
   }
+  if (carried && nation !== null) notices.push(`Using ${NATION_NAMES[nation]} from earlier in this conversation. Name a nation or select one to change it.`);
   if (kind === "follow_up" && nation !== null && earlier !== null && earlier !== nation) {
     notices.push(`This answer is for ${NATION_NAMES[nation]}. Your last question was about ${NATION_NAMES[earlier]}.`);
   }
@@ -85,7 +85,7 @@ export function registerChat(app: FastifyInstance, chat: ChatService | null, now
       return reply.code(503).send({ error: "CHAT_UNAVAILABLE", message: "Answers are temporarily unavailable. Please try again.", requestId: request.id });
     }
 
-    const { kind, nation: jurisdiction, asOfDate, clarifyNations, turns } = answer.conversation;
+    const { kind, nation: jurisdiction, carried, asOfDate, clarifyNations, turns } = answer.conversation;
     // Privacy: record the outcome, never the question or the conversation.
     request.log.info({
       questionLength: question.length, conversation: kind, historyTurns: history.length, jurisdiction, asOfDate, mode: answer.mode, abstainReason: answer.abstainReason,
@@ -102,7 +102,7 @@ export function registerChat(app: FastifyInstance, chat: ChatService | null, now
       message: answer.abstainReason === null ? null : ABSTAIN_MESSAGES[answer.abstainReason],
       abstainReason: answer.abstainReason,
       clarifyNations,
-      conversation: { kind, turns },
+      conversation: { kind, carried, turns },
       sources: answer.sources,
       notices: noticesFor(answer, history.at(-1)),
       model: answer.modelId,

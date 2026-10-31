@@ -25,7 +25,7 @@ const grounded: ChatAnswer = {
   personalAdviceRequested: false,
   modelId: "test:fake",
   usage: { tokens: 0, cached: false, retrievalMs: 0, modelMs: 0 },
-  conversation: { kind: "standalone", turns: [{ question: "What is the starter rate?", nation: "scotland" }], nation: "scotland", asOfDate: "2026-10-28", clarifyNations: [] }
+  conversation: { kind: "standalone", turns: [{ question: "What is the starter rate?", nation: "scotland" }], nation: "scotland", carried: false, asOfDate: "2026-10-28", clarifyNations: [] }
 };
 const inConversation = (conversation: Partial<ChatAnswer["conversation"]>): ChatAnswer => ({ ...grounded, conversation: { ...grounded.conversation, ...conversation } });
 
@@ -81,13 +81,14 @@ describe("conversation history", () => {
     const { chat, requests } = fakeChat(inConversation({ kind: "follow_up" }));
     const body = await ask(chat, { question: "What about Wales?", history: [turn] });
     expect(requests[0]?.history).toEqual([turn]);
-    expect(body.conversation).toEqual({ kind: "follow_up", turns: [{ question: "What is the starter rate?", nation: "scotland" }] });
+    expect(body.conversation).toEqual({ kind: "follow_up", carried: false, turns: [{ question: "What is the starter rate?", nation: "scotland" }] });
   });
 
   it.each([
     ["more turns than allowed", { history: Array.from({ length: 7 }, () => turn) }],
     ["an earlier answer", { history: [{ ...turn, answer: "The higher rate is 10%." }] }],
     ["a chat role", { history: [{ ...turn, role: "assistant" }] }],
+    ["a compared flag that isn't true", { history: [{ ...turn, compared: false }] }],
     ["an oversized turn", { history: [{ question: "a".repeat(601), nation: null }] }],
     ["a bad nation", { history: [{ question: "What is the rate?", nation: "france" }] }],
     ["a turn without a nation field", { history: [{ question: "What is the rate?" }] }]
@@ -103,10 +104,28 @@ describe("conversation history", () => {
     expect(body.notices.join(" ")).toContain("This answer is for Wales. Your last question was about Scotland.");
   });
 
-  it("says when a new question is not limited to the nation discussed before", async () => {
-    const { chat } = fakeChat(inConversation({ nation: null }));
+  it("says when the nation came from earlier in the conversation, and how to change it", async () => {
+    const { chat } = fakeChat(inConversation({ carried: true }));
     const body = await ask(chat, { question: "What is the basic rate?", history: [turn] });
-    expect(body.notices.join(" ")).toContain("isn't limited to Scotland");
+    expect(body.notices.join(" ")).toContain("Using Scotland from earlier in this conversation");
+    expect(body.conversation.carried).toBe(true);
+  });
+
+  it("accepts the sides of a comparison in history", async () => {
+    const { chat, requests } = fakeChat(grounded);
+    const sides = [{ ...turn, compared: true }, { ...turn, nation: "wales", compared: true }];
+    await ask(chat, { question: "And last tax year?", history: sides });
+    expect(requests[0]?.history).toEqual(sides);
+  });
+
+  it("returns which side of a comparison each sentence belongs to", async () => {
+    const { chat } = fakeChat({ ...inConversation({ kind: "comparison", nation: null }), answer: [{ text: "It is 42%.", sourceIds: ["S1"], side: 0 }] });
+    expect((await ask(chat, { question: "Compare the two.", history: [turn] })).answer[0].side).toBe(0);
+  });
+
+  it("explains why a comparison was refused", async () => {
+    const { chat } = fakeChat({ ...inConversation({ kind: "comparison", nation: null }), mode: "abstained", answer: [], abstainReason: "comparison_incomplete", sources: [] });
+    expect((await ask(chat, { question: "Compare the two.", history: [turn] })).message).toContain("doesn't support both sides");
   });
 
   it("doesn't ask where you live when comparing two nations", async () => {

@@ -56,16 +56,23 @@ function CopyButton({ text }: { text: string }) {
 
 function copyText(response: ChatResponse): string {
   const cited = response.sources.filter(source => source.cited).map(source => source.url);
-  return [response.answer.map(sentence => sentence.text).join(" "), ...cited].join("\n");
+  const text = answerGroups(response).map(({ label, sentences }) => `${label === null ? "" : `${label}: `}${sentences.map(sentence => sentence.text).join(" ")}`);
+  return [...text, ...cited].join("\n");
 }
 
 const describeTurn = (turn: PastTurn) => `${turn.question}${turn.nation === null ? "" : ` (${NATION_LABELS[turn.nation]})`}`;
 
-/** Shows how a follow-up was read, so a wrong reading is easy to spot. */
+/** Shows how a question was read, before the answer, so a wrong reading is easy to spot. */
 function Interpretation({ conversation }: { conversation: ChatResponse["conversation"] }) {
-  if (conversation.kind === "follow_up") return <p className="text-sm text-muted mt-2">Answering: {conversation.turns.map(describeTurn).join("")}</p>;
+  if (conversation.kind === "follow_up" || conversation.carried) return <p className="text-sm text-muted mt-2">Answering: {conversation.turns.map(describeTurn).join("")}</p>;
   if (conversation.kind === "comparison") return <p className="text-sm text-muted mt-2">Comparing: {conversation.turns.map(describeTurn).join(" and ")}</p>;
   return null;
+}
+
+/** The sentences of an answer: one group, or one for each side of a comparison, labelled with what it answers. */
+function answerGroups(response: ChatResponse): { label: string | null; sentences: ChatResponse["answer"] }[] {
+  if (response.conversation.kind !== "comparison") return [{ label: null, sentences: response.answer }];
+  return response.conversation.turns.map((turn, index) => ({ label: describeTurn(turn), sentences: response.answer.filter(sentence => sentence.side === index) }));
 }
 
 function Answer({ turnId, response, seconds, onShowSources, onPick, onUseNation }: { turnId: number; response: ChatResponse; seconds: number; onShowSources: ShowSources; onPick: (question: string) => void; onUseNation: (nation: Nation) => void }) {
@@ -77,19 +84,22 @@ function Answer({ turnId, response, seconds, onShowSources, onPick, onUseNation 
     <Interpretation conversation={response.conversation} />
 
     {grounded
-      ? <p className="answer-text mt-3">
-          {groupCitations(response.answer).map((run, index) => {
-            // The last word stays with its markers, so a marker never wraps onto a line by itself.
-            const splitAt = run.text.lastIndexOf(" ") + 1;
-            return <span key={index}>
-              {run.text.slice(0, splitAt)}
-              <span className="whitespace-nowrap">
-                {run.text.slice(splitAt)}
-                {run.sourceIds.map(id => <CitationMarker key={id} source={sourceById.get(id)} onOpen={event => onShowSources(turnId, id, event.currentTarget)} />)}
-              </span>{" "}
-            </span>;
-          })}
-        </p>
+      ? answerGroups(response).map(({ label, sentences }) => <div key={label ?? "answer"}>
+          {label !== null && <h3 className="text-sm font-medium text-ink mt-4">{label}</h3>}
+          <p className={`answer-text ${label === null ? "mt-3" : "mt-1"}`}>
+            {groupCitations(sentences).map((run, index) => {
+              // The last word stays with its markers, so a marker never wraps onto a line by itself.
+              const splitAt = run.text.lastIndexOf(" ") + 1;
+              return <span key={index}>
+                {run.text.slice(0, splitAt)}
+                <span className="whitespace-nowrap">
+                  {run.text.slice(splitAt)}
+                  {run.sourceIds.map(id => <CitationMarker key={id} source={sourceById.get(id)} onOpen={event => onShowSources(turnId, id, event.currentTarget)} />)}
+                </span>{" "}
+              </span>;
+            })}
+          </p>
+        </div>)
       : <p className="answer-text mt-3 text-muted">{response.message}</p>}
     {response.abstainReason === "too_vague" && <SuggestionList onPick={onPick} align="left" />}
     {response.clarifyNations.length > 0 && <ul aria-label="Choose a nation" className="flex flex-wrap gap-2 mt-5">
@@ -156,7 +166,7 @@ export function ChatPanel({ onNewConversation }: { onNewConversation: () => void
   const busy = turns.some(turn => turn.status === "loading");
 
   // Earlier questions go with each request, never earlier answers: every turn is retrieved and checked from scratch.
-  const history = turns.flatMap(turn => turn.status === "done" && turn.response.conversation.turns.length === 1 ? turn.response.conversation.turns : []).slice(-MAX_HISTORY);
+  const history = turns.flatMap(turn => turn.status === "done" ? turn.response.conversation.turns : []).slice(-MAX_HISTORY);
 
   async function ask(asked: string, chosenNation: Nation | null) {
     const startedAt = Date.now();

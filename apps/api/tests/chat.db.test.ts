@@ -148,13 +148,36 @@ describe("a conversation over the real retrieval stack", () => {
     expect(rates(after)).not.toContain("scottish-income-tax");
   });
 
-  it("compares two nations from guides for each, and shows the model both", async () => {
+  it("compares two nations by answering each from its own guides", async () => {
     await seed();
     const model = recordingModel(abstain);
-    const history = [scottish, { question: scottish.question, nation: "wales" as const }];
-    const reply = await ask(model, { question: "Compare the two.", nation: null, asOfDate: "2026-10-28", history });
+    const reply = await ask(model, { question: "Compare the two.", nation: null, asOfDate: "2026-10-28", history: [scottish, { question: scottish.question, nation: "wales" as const }] });
     expect(reply.conversation.kind).toBe("comparison");
-    expect(rates(reply)).toEqual(expect.arrayContaining(["scottish-income-tax", "welsh-income-tax"]));
+    expect(model.prompts).toHaveLength(2);
+    const prompts = model.prompts.map(prompt => prompt.user);
+    const promptFor = (nation: string) => prompts.find(prompt => prompt.includes(`lives or works: ${nation}`)) ?? "";
+    expect(promptFor("scotland")).toContain("Income Tax in Scotland");
+    expect(promptFor("scotland")).not.toContain("Income Tax in Wales");
+    expect(promptFor("wales")).toContain("Income Tax in Wales");
+    expect(promptFor("wales")).not.toContain("Income Tax in Scotland");
+  });
+
+  it("refuses a comparison with a year no section covers, without showing the other side", async () => {
+    await seed();
+    const model = recordingModel(say("Income Tax in Scotland applies.", ["S1"]));
+    const reply = await ask(model, { question: "Compare that with 2019 to 2020", nation: null, asOfDate: "2026-10-28", history: [scottish] });
+    expect(reply).toMatchObject({ mode: "abstained", abstainReason: "comparison_incomplete", answer: [] });
+  });
+
+  it("keeps the nation under discussion in the filter, and the selection overrides it", async () => {
+    await seed();
+    const carried = await ask(recordingModel(abstain), { question: "What are the income tax rates and bands?", nation: null, asOfDate: "2026-10-28", history: [{ question: "What is the advanced rate?", nation: "scotland" }] });
+    expect(carried.conversation).toMatchObject({ nation: "scotland", carried: true });
+    expect(rates(carried)).toContain("scottish-income-tax");
+    expect(rates(carried)).not.toContain("income-tax-rates");
+    const selected = await ask(recordingModel(abstain), { question: "What are the income tax rates and bands?", nation: "england", asOfDate: "2026-10-28", history: [{ question: "What is the advanced rate?", nation: "scotland" }] });
+    expect(selected.conversation).toMatchObject({ nation: "england", carried: false });
+    expect(rates(selected)).not.toContain("scottish-income-tax");
   });
 
   it("refuses a year no section covers, even though undated guidance matches", async () => {

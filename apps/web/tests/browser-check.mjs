@@ -1,7 +1,7 @@
 // npm run test:browser (with `npm run dev` running)
 // Drives the real app in headless Chrome over the DevTools protocol: real API, database and model.
 // No browser library needed. Set CHROME_PATH to use another Chrome; pass a folder to keep screenshots.
-// Makes 10 chat requests, the per-minute limit, so leave a minute between runs.
+// Stays under the limit of 10 chat requests a minute by pausing before the mobile checks. Leave a minute between runs.
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -106,7 +106,10 @@ try {
   check("says the nation changed", second.includes("Your last question was about Scotland"), second);
 
   const compared = await ask("Compare the two.");
-  check("compares both sides", compared.includes("Comparing:") && compared.includes("42%") && compared.includes("40%"), compared);
+  check("labels each side of a comparison", compared.includes("What is the higher rate? (Scotland)") && compared.includes("What is the higher rate? (England)"), compared);
+  check("compares both sides", compared.includes("42%") && compared.includes("40%"), compared);
+  const sidesCited = await run(`[...document.querySelectorAll("section[data-turn]")].at(-1).querySelectorAll('button[aria-label^="Source"]').length`);
+  check("cites both sides", sidesCited >= 2, String(sidesCited));
 
   await run(`(() => {
     const select = document.querySelector("form:has(#question) select");
@@ -134,9 +137,9 @@ try {
   await screenshot("desktop");
 
   const sent = JSON.stringify(chatBodies);
-  check("history holds questions and nations only", chatBodies.every(body => body.history.every(turn => Object.keys(turn).sort().join() === "nation,question")));
+  check("history holds questions and nations only", chatBodies.every(body => body.history.every(turn => Object.keys(turn).every(key => ["question", "nation", "compared"].includes(key)))));
   check("no answer text is ever sent back", !sent.includes("£43,663") && !sent.includes("£50,271"), sent);
-  check("a comparison isn't remembered as a question", !sent.includes("Compare") || chatBodies.every(body => body.history.every(turn => !turn.question.startsWith("Compare"))));
+  check("a comparison is remembered as its sides, not its wording", chatBodies.every(body => body.history.every(turn => !turn.question.startsWith("Compare"))));
   check("nothing is written to browser storage", await run(`localStorage.length + sessionStorage.length`) === 0);
 
   await clickButton("New conversation");
@@ -154,12 +157,15 @@ try {
   await clickButton("Calculate");
   check("the payday calculator still works", await waitFor(`document.body.innerText.includes("27 Nov")`, 5_000), await run(`document.body.innerText.slice(0, 400)`));
 
+  await sleep(62_000);
   console.log("Mobile, dark");
   await open(390, 844, "dark", true);
   const mobileFirst = await ask("What is the higher rate in Scotland?");
   check("answers on mobile", mobileFirst.includes("42%"), mobileFirst);
   const mobileSecond = await ask("What about Wales?");
   check("follows up on mobile", mobileSecond.includes("40%") && mobileSecond.includes("Answering:"), mobileSecond);
+  const carried = await ask("What is the basic rate?");
+  check("shows a nation carried from earlier", carried.includes("Answering: What is the basic rate? (Wales)") && carried.includes("from earlier in this conversation"), carried);
   check("New conversation is visible without opening the menu", await run(`[...document.querySelectorAll("button")].some(button => button.offsetParent !== null && button.textContent.trim() === "New conversation")`));
   check("no sideways scrolling", await run(`document.documentElement.scrollWidth <= window.innerWidth`));
   await screenshot("mobile");

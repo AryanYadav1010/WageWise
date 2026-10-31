@@ -22,6 +22,7 @@
     "eval:retrieval": "npm run eval:retrieval -w @wagewise/api --",
     "eval:answers": "npm run eval:answers -w @wagewise/api --",
     "eval:conversations": "npm run eval:conversations -w @wagewise/api --",
+    "review:sheet": "npm run review:sheet -w @wagewise/api --",
     "eval:check-labels": "npm run eval:check-labels -w @wagewise/api",
     "lint": "eslint apps/api/src apps/api/tests apps/web/src",
     "licence:review": "npm run licence:review -w @wagewise/api --"

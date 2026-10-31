@@ -105,20 +105,21 @@ export type ChatSource = {
 };
 
 /** Earlier questions only: the API has no field for earlier answers, and they are never sent back. */
-export type PastTurn = { question: string; nation: Nation | null };
+export type PastTurn = { question: string; nation: Nation | null; compared?: true | undefined };
 
 export type ChatResponse = {
   mode: "grounded_answer" | "abstained";
   isGroundedAnswer: boolean;
   traceId: string;
   request: { jurisdiction: Nation | null; asOfDate: string };
-  answer: { text: string; sourceIds: string[] }[];
+  /** side says which turn of a comparison a sentence belongs to. */
+  answer: { text: string; sourceIds: string[]; side?: number }[];
   message: string | null;
   abstainReason: string | null;
   /** Nations the question names when they differ from the one selected. */
   clarifyNations: Nation[];
-  /** How the question was read, and what it resolved to. A single turn is remembered for the next question. */
-  conversation: { kind: "standalone" | "follow_up" | "comparison" | "unresolved"; turns: PastTurn[] };
+  /** How the question was read, and what it resolved to. These turns are remembered for the next question. */
+  conversation: { kind: "standalone" | "follow_up" | "comparison" | "unresolved"; carried: boolean; turns: PastTurn[] };
   sources: ChatSource[];
   notices: string[];
   disclaimer: string;

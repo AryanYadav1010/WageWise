@@ -19,6 +19,7 @@
     "eval:retrieval": "tsx src/cli/eval-retrieval.ts",
     "eval:answers": "tsx src/cli/eval-answers.ts",
     "eval:conversations": "tsx src/cli/eval-conversations.ts",
+    "review:sheet": "tsx src/cli/review-sheet.ts",
     "eval:check-labels": "tsx src/cli/check-labels.ts",
     "licence:review": "tsx src/cli/licence-review.ts"
   },

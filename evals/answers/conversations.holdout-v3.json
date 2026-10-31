@@ -1,0 +1,481 @@
+{
+ "version": "conversations-holdout-v3",
+ "createdAt": "2026-10-31",
+ "description": "Third multi-turn held-out set, written before fixing what the second one exposed, and run once on the final code. Same author as the code, so unseen but not independent. Never tune on it.",
+ "cases": [
+  {
+   "id": "m-01",
+   "category": "compare_nation",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What is the additional rate in Northern Ireland?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "45%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "how does that compare with Scotland's top rate",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": [],
+     "kind": "comparison",
+     "sides": [
+      {
+       "nation": "northern-ireland",
+       "facts": [
+        "45%"
+       ]
+      },
+      {
+       "nation": "scotland",
+       "facts": [
+        "48%"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-02",
+   "category": "compare_nation",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "Basic rate in Scotland?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "20%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "versus England?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": [],
+     "kind": "comparison",
+     "sides": [
+      {
+       "nation": "scotland",
+       "facts": [
+        "£16,538"
+       ]
+      },
+      {
+       "nation": "england",
+       "facts": [
+        "£12,571"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-03",
+   "category": "compare_standalone",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "Compare the starter rate in Scotland and the basic rate in England",
+     "jurisdiction": null,
+     "expect": "any",
+     "mustInclude": [],
+     "mustNotInclude": [
+      "you should"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-04",
+   "category": "compare_standalone",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "Northern Ireland vs Scotland higher rate",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": [],
+     "kind": "comparison",
+     "sides": [
+      {
+       "nation": "northern-ireland",
+       "facts": [
+        "40%"
+       ]
+      },
+      {
+       "nation": "scotland",
+       "facts": [
+        "42%"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-05",
+   "category": "compare_target",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What is the Class 2 rate?",
+     "jurisdiction": "england",
+     "expect": "answer",
+     "mustInclude": [
+      "£3.65"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "How does that compare with Class 1?",
+     "jurisdiction": "england",
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": [],
+     "kind": "comparison",
+     "sides": [
+      {
+       "nation": "england",
+       "facts": [
+        "£3.65"
+       ]
+      },
+      {
+       "nation": "england",
+       "facts": [
+        "8%"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-06",
+   "category": "compare_target",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What is the Scottish starter rate?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "19%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "compare it with the intermediate rate",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": [],
+     "kind": "comparison",
+     "sides": [
+      {
+       "nation": "scotland",
+       "facts": [
+        "19%"
+       ]
+      },
+      {
+       "nation": "scotland",
+       "facts": [
+        "21%"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-07",
+   "category": "compare_year",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What's the Scottish basic rate this tax year?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "£16,538"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "compare that to last year",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": [],
+     "kind": "comparison",
+     "sides": [
+      {
+       "nation": "scotland",
+       "facts": [
+        "£16,538"
+       ]
+      },
+      {
+       "nation": "scotland",
+       "facts": [
+        "£15,398"
+       ],
+       "year": "2025 to 2026"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-08",
+   "category": "compare_insufficient",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What is the Scottish starter rate?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "19%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "How does Wales compare?",
+     "jurisdiction": null,
+     "expect": "no_answer",
+     "mustInclude": [],
+     "mustNotInclude": [
+      "19%"
+     ],
+     "reason": "comparison_incomplete"
+    }
+   ]
+  },
+  {
+   "id": "m-09",
+   "category": "compare_insufficient",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What's the higher rate in Wales?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "40%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "compare that with corporation tax",
+     "jurisdiction": null,
+     "expect": "no_answer",
+     "mustInclude": [],
+     "mustNotInclude": [
+      "40%"
+     ],
+     "reason": "comparison_incomplete"
+    }
+   ]
+  },
+  {
+   "id": "m-10",
+   "category": "compare_then",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What's the basic rate in Wales?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": []
+    },
+    {
+     "question": "And Scotland?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": []
+    },
+    {
+     "question": "how do they compare",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": []
+    },
+    {
+     "question": "and the higher rate?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": [],
+     "kind": "comparison",
+     "sides": [
+      {
+       "nation": "wales",
+       "facts": [
+        "40%"
+       ]
+      },
+      {
+       "nation": "scotland",
+       "facts": [
+        "42%"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "m-11",
+   "category": "single_direct",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What is the higher rate in Northern Ireland?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "40%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "And the additional rate?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "45%"
+     ],
+     "mustNotInclude": [],
+     "nation": "northern-ireland"
+    }
+   ]
+  },
+  {
+   "id": "m-12",
+   "category": "single_direct",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What is the basic rate in Wales?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "20%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "What is the additional rate in Northern Ireland?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "45%"
+     ],
+     "mustNotInclude": []
+    }
+   ]
+  },
+  {
+   "id": "m-13",
+   "category": "context_nation",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What's the Welsh additional rate?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "45%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "What is the higher rate?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "40%"
+     ],
+     "mustNotInclude": [],
+     "nation": "wales",
+     "carried": true
+    }
+   ]
+  },
+  {
+   "id": "m-14",
+   "category": "context_year",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "Scottish higher rate for 2026/27",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "42%"
+     ],
+     "mustNotInclude": []
+    },
+    {
+     "question": "the year before?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [
+      "42%"
+     ],
+     "mustNotInclude": [],
+     "year": "2025 to 2026"
+    }
+   ]
+  },
+  {
+   "id": "m-15",
+   "category": "advice",
+   "asOfDate": "2026-10-30",
+   "turns": [
+    {
+     "question": "What's the higher rate in Scotland?",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": []
+    },
+    {
+     "question": "compare that with Wales",
+     "jurisdiction": null,
+     "expect": "answer",
+     "mustInclude": [],
+     "mustNotInclude": []
+    },
+    {
+     "question": "should I move then?",
+     "jurisdiction": null,
+     "expect": "any",
+     "mustInclude": [],
+     "mustNotInclude": [
+      "you should",
+      "better off"
+     ],
+     "advice": true
+    }
+   ]
+  }
+ ]
+}

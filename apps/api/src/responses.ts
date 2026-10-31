@@ -21,9 +21,9 @@ const chatSource = z.object({
 export const chatResponse = z.object({
   mode: z.enum(["grounded_answer", "abstained"]), isGroundedAnswer: z.boolean(), traceId: z.string(),
   request: z.object({ jurisdiction: nation.nullable(), asOfDate: z.string() }).strict(),
-  answer: z.array(z.object({ text: z.string(), sourceIds: z.array(z.string()) }).strict()),
+  answer: z.array(z.object({ text: z.string(), sourceIds: z.array(z.string()), side: z.number().int().optional() }).strict()),
   message: z.string().nullable(), abstainReason: z.string().nullable(), clarifyNations: z.array(nation),
-  conversation: z.object({ kind: z.enum(["standalone", "follow_up", "comparison", "unresolved"]), turns: z.array(z.object({ question: z.string(), nation: nation.nullable() }).strict()) }).strict(),
+  conversation: z.object({ kind: z.enum(["standalone", "follow_up", "comparison", "unresolved"]), carried: z.boolean(), turns: z.array(z.object({ question: z.string(), nation: nation.nullable(), compared: z.literal(true).optional() }).strict()) }).strict(),
   sources: z.array(chatSource),
   notices: z.array(z.string()), model: z.string().nullable(), disclaimer: z.string()
 }).strict();
