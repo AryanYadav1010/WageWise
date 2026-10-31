@@ -9,3 +9,6 @@ coverage/
 .vite/
 .cache/
 .neon
+
+# Demo recordings stay out of Git
+demo/

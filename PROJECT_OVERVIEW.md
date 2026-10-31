@@ -14,7 +14,7 @@ You ask something like "What does tax code 1257L mean?" WageWise finds the relev
 
 The interface is inspired by answer engines such as Perplexity: one question box, a clean reading page and sources one click away. It also has a guidance search page, a directory of official links and a payday budget calculator.
 
-**Current state:** it works end to end on a developer's machine, using 5 approved GOV.UK guides. It is a **release candidate for private demos only**: **not deployed publicly**, and its answers have no recorded human review.
+**Current state:** it works end to end on a developer's machine, using 5 approved GOV.UK guides. It is a **release candidate for private demos only**: **not deployed publicly**. The owner reports reviewing the 66 priority answers, but their decisions are not recorded yet.
 
 ---
 
@@ -94,7 +94,7 @@ The interface is inspired by answer engines such as Perplexity: one question box
 - **Accounts or saved history.** A conversation lasts as long as the browser tab.
 - **Dashboards and alerting.** Logs contain the data, but nothing watches them yet.
 - **CI on GitHub.** The code is in a private repository, but GitHub doesn't start workflows there (`startup_failure`, 30 Oct), as on another private repository on the same account. The same CI steps pass on a clean clone of the pushed commit, run locally.
-- **A recorded human review of the current answers.** The owner reports reviewing earlier answers, but no marks are recorded in this repository, and the answers changed again in V3. See the [checklist](docs/ANSWER_REVIEW_CHECKLIST.md).
+- **A recorded human review of the current answers.** The owner reports reviewing all 66 priority answers on 31 Oct, but no row-level decisions or sign-off result are recorded, and the full review has not been done. See the [checklist](docs/ANSWER_REVIEW_CHECKLIST.md).
 
 ---
 
@@ -346,7 +346,7 @@ V2 note: the 30/30 is flattering because fixes targeted those failures, and the 
 
 The "Should I…" sets only look for recommendation wording, so they show the wording is gone, not that the answers are right. The set of 8 passed first time, but it then exposed one phrasing the detector missed, which was fixed, so it no longer counts as held out. Four of the 12 and five of the 8 were refused, so the check was tested on 11 answered questions, and many personal questions get no answer at all.
 
-**Human review is still pending.** The sheets have blank columns for a person to mark correctness, citation support, completeness, recommendation wording, abstention and injection resistance. Follow [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md).
+**Human review is not recorded yet.** The sheets have columns for a person to mark correctness, citation support, completeness, recommendation wording, abstention and injection resistance. The owner reports reviewing the 66 priority answers, but those columns are blank, and the automatic scores above don't prove any answer is right.
 
 ### V2.1: nation and tax-year fixes
 **Root cause of the jurisdiction bug.** None of the 81 approved chunks contains the word "England", and only one contains "Northern Ireland". So a nation named in a question counted as a word the guidance had to contain, and it also pulled similarity below the floor. "What is the higher rate of Income Tax in England?" scored 0.678 against a 0.69 floor, while the same question with England selected scored 0.697 and every word matched. Scotland and Wales hid the bug because their guides do use those words.
@@ -439,6 +439,9 @@ The re-run is not a fair score, because the last fixes came from reading those b
 | "The year before" wasn't understood | It counts from the year under discussion |
 
 **Tests.** `npm run test:browser` drives the real app in headless Chrome, with no browser library, and passes 28 of 28 checks on desktop and mobile. Captured requests hold questions and nations only, browser storage stays empty, and New conversation sends an empty history.
+
+### Release verification (31 Oct)
+Full results are in [docs/RELEASE.md](docs/RELEASE.md). Every test suite and benchmark was re-run on the release code. These re-runs aren't blind, because those sets were already exposed.
 
 ### Failure testing on real servers (31 Oct)
 | Case | Result |
@@ -536,7 +539,8 @@ These are real and should be stated honestly when presenting.
 13. **Two different topics in one question aren't split.** "Compare the starter rate in Scotland and the basic rate in England" resolves to a garbled question and refuses. Asked in two steps, it works.
 14. **Earlier answers aren't available to follow-ups.** "The second one", meaning an item in the last answer, can't be resolved. This is the price of never treating an answer as evidence.
 15. **Comparisons show both sides, not a conclusion.** Code can't confirm a sentence's meaning, only that its figures come from that side's own sources and it names no other side.
-16. **Refusing more is the cost of some checks.** An answer that loses its opening sentence now refuses. On one test question, the model still used wording the checks remove in 5 of 12 runs, though the direct answer survived in all 12.
+16. **The thread doesn't follow a long answer.** It scrolls when a question is asked, before the answer exists, so the end of a long answer can sit below the question box until you scroll.
+17. **Refusing more is the cost of some checks.** An answer that loses its opening sentence now refuses. On one test question, the model still used wording the checks remove in 5 of 12 runs, though the direct answer survived in all 12.
 ---
 
 ## 10. Run and deploy
@@ -552,7 +556,7 @@ These are real and should be stated honestly when presenting.
 **Before any public launch:**
 1. Reset the Neon password, which appeared in development logs and chat and had not been rotated at the last check on 30 Oct at 23:35, and confirm the replaced Anthropic key is deleted. Exact steps are at the top of `docs/DEPLOYMENT.md`.
 2. Set an Anthropic monthly spend limit.
-3. Have a person complete the [answer review](docs/ANSWER_REVIEW_CHECKLIST.md).
+3. Record the priority human review row by row, then complete the full [answer review](docs/ANSWER_REVIEW_CHECKLIST.md).
 4. Publish the approved content to the production branch, and create the read-only database role.
 5. Decide where to host: next to the database in US-East, or move the database to London.
 6. Deploy, then re-run the browser, CORS and rate-limit checks on the live site.
@@ -563,7 +567,7 @@ These are real and should be stated honestly when presenting.
 ## 11. Roadmap
 
 **Next: quality**
-- Complete the human answer review and fix what it finds.
+- Record the human answer review row by row, and fix what it finds.
 - Fix the remaining refusals, especially questions built around a figure.
 - Approve more guides, especially pensions, sick pay and student loans.
 

@@ -1,6 +1,8 @@
 # Human answer review
 
-**Status: not done.** No human review of the current answers is recorded. The owner reports reviewing an earlier set of answers, but no marks were recorded here, and V2.1 and V3 have changed what WageWise says, so that review can't be assumed to cover them.
+**Status: stage 1 reported complete but not recorded. Stage 2 not done.** On 31 October 2026 the project owner stated that they had reviewed all 66 priority rows and the relevant financial queries. Their decisions aren't recorded: every row of the [priority sheet](../evals/answers/review/v3-priority.md) is blank, so no answer can be counted as passed. An earlier review reported by the owner had no recorded marks either, and V2.1 and V3 have changed what WageWise says, so it can't be assumed to cover the current answers.
+
+To finish stage 1, mark each row of the priority sheet, fill in its sign-off row, and repeat the result in the table at the end of this page.
 
 The automatic checks catch invented figures, wrong sources and recommendation wording. They cannot tell whether an answer is right, so a person has to. In testing, an answer passed every automatic check and contained a false sentence. A reviewer needs no coding knowledge, only care and a browser. If the answers are to be relied on by the public, someone with UK tax knowledge should do it or check the result.
 
@@ -75,7 +77,7 @@ A review counts only when it is recorded here, with the commit reviewed. It pass
 
 | Sheet | Commit reviewed | Reviewer | Date | Rows marked no | Stop items | Result |
 |---|---|---|---|---|---|---|
-| Priority sheet (stage 1) | | | | | | |
+| Priority sheet (stage 1) | Not stated. Sheet shows answers from `bbac4c6` | Project owner, by their own statement | 31 Oct 2026, the date of the statement | Not recorded | Not recorded | Not recorded |
 | 42-advice-final | | | | | | |
 | 43-advice-holdout-final | | | | | | |
 | 37-dev-v2-final | | | | | | |

@@ -7,8 +7,11 @@ A 60–90 second walkthrough of WageWise UK for an engineering audience. Every q
 1. Run `npm run dev` and open http://localhost:5173.
 2. Ask one question, then click **New conversation**. The first answer after a restart is the slowest.
 3. Leave the nation selector on its default, so nothing is selected.
+4. After each answer, scroll down if needed. The thread doesn't follow a long answer.
 
 Chat is limited to 10 requests a minute, which this script doesn't reach.
+
+A recorded version is at `demo/wagewise-v3-demo.mp4`, on the machine that made it. It is kept out of Git. It shows the real app, covers the same features as the script below in a slightly different order, and its captions and narration were added in editing.
 
 ## The script
 
@@ -42,7 +45,7 @@ Ask *And last tax year?*
 
 "This part uses no AI. It's whole-pence arithmetic with real UK bank holidays, so the 28 November payday moves to Friday the 27th."
 
-**Close (10 seconds).** "The benchmarks are in the repository. On a held-out conversation set, it went from 10 of 24 to 20 of 24, and a smaller fresh set then passed 15 of 15. Those are automatic checks, and I wrote the questions, so a person still has to review the answers. That review is prepared, but not done."
+**Close (10 seconds).** "The benchmarks are in the repository. On a held-out conversation set, it went from 10 of 24 to 20 of 24, and a smaller fresh set then passed 15 of 15. Those are automatic checks, and I wrote the questions, so human review matters. I've reviewed the 66 highest-risk answers, and the row-by-row decisions still need recording."
 
 ## If you're asked
 

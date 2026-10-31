@@ -39,7 +39,7 @@ npm run eval:conversations -- --label my-change    # multi-turn quality, real mo
 npm run review:sheet -- --commit <hash>    # rebuild the priority human review after answers change
 ```
 
-**Status:** a release candidate for private demos. It isn't deployed, and no human review of the current answers is recorded. Before a public release, a person must complete [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md), and the Neon password must be reset.
+**Status:** a release candidate for private demos, verified as described in [docs/RELEASE.md](docs/RELEASE.md). It isn't deployed. The owner reports reviewing the 66 priority answers, but the decisions aren't recorded. Before a public release, that review must be recorded, the rest of [docs/ANSWER_REVIEW_CHECKLIST.md](docs/ANSWER_REVIEW_CHECKLIST.md) completed, and the Neon password reset.
 
 After changing the approved guides, recheck `SEARCH_MIN_SIMILARITY` and `ANSWER_MIN_SIMILARITY` against the benchmarks. See [docs/LICENCE_REVIEW.md](docs/LICENCE_REVIEW.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 

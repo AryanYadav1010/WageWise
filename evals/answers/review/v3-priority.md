@@ -1,6 +1,6 @@
 # Priority human review
 
-**Status: NOT REVIEWED.** Nobody has signed this off. Automatic checks and an AI reading these answers are not a human review.
+**Status: reported complete by the project owner, but not recorded.** On 31 October 2026 the owner stated that they had reviewed all 66 rows and the relevant financial queries. No decision, note or result for any row has been recorded, so a blank column below does not mean a pass. Automatic checks and an AI reading these answers are not a human review.
 
 Answers from commit `bbac4c6`. 66 rows: 24 comparison, 3 past tax year, 9 advice, 30 figures. Allow about 2 minutes a row. How to mark them is in [the checklist](../../../docs/ANSWER_REVIEW_CHECKLIST.md).
 
@@ -79,4 +79,4 @@ A sign-off covers only these answers from this commit. Any change to the model, 
 
 | Reviewer | Date | Commit reviewed | Rows marked no | Stop items | Decision (pass or fail) |
 |---|---|---|---|---|---|
-| | | | | | |
+| Project owner, by their own statement | 31 Oct 2026, the date of the statement | Not stated. This sheet shows answers from `bbac4c6` | Not recorded | Not recorded | Not recorded |
